@@ -61,7 +61,8 @@ def _startup_tips() -> list[str]:
 def _generate_code() -> str:
     chars = string.ascii_lowercase + string.digits
     code = "".join(secrets.choice(chars) for _ in range(SESSION_CODE_LENGTH))
-    return f"{code[:4]}-{code[4:]}"
+    # Format as xxxx-xxxxxx for 10 chars (easier to read/share)
+    return f"{code[:5]}-{code[5:]}"
 
 
 def _human_size(b: int | float) -> str:

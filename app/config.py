@@ -24,7 +24,7 @@ PROTOCOL_VERSION     = 1   # current wire-protocol version
 MIN_PROTOCOL_VERSION = 1   # minimum compatible version (reject older)
 
 # ── Session ────────────────────────────────────────────────────────
-SESSION_CODE_LENGTH = 8
+SESSION_CODE_LENGTH = 10  # 36^10 ≈ 3.6 quadrillion combinations
 
 # ── Resume ─────────────────────────────────────────────────────────
 RESUME_MANIFEST_EXT  = ".resume"          # manifest file extension

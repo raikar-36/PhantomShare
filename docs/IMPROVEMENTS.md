@@ -120,15 +120,14 @@ python test_relay.py
 
 ---
 
-### 3. Session Code Entropy
+### 3. Session Code Entropy ✅ COMPLETED
 
-**Current:** 8-character session codes from `[a-z0-9]` = 36^8 ≈ 2.8 trillion combinations.
+**Status:** Implemented in v1.0.0
 
-**Recommendation:** Consider increasing to 10-12 characters for long-term security.
-
-```python
-SESSION_CODE_LENGTH = 10  # 36^10 ≈ 3.6 quadrillion combinations
-```
+**Implementation:**
+- Increased `SESSION_CODE_LENGTH` from 8 to 10 characters
+- Updated code format to `xxxxx-xxxxx` (5-5 split) for better readability
+- Now provides 36^10 ≈ 3.6 quadrillion combinations
 
 ---
 
