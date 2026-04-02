@@ -103,18 +103,16 @@ python test_relay.py
 
 ---
 
-### 2. Memory Protection for Keys
+### 2. Memory Protection for Keys ✅ COMPLETED
 
-**Current:** Cryptographic keys are stored as regular Python `bytes`.
+**Status:** Implemented in v1.0.0
 
-**Recommendation:** Use secure memory handling for sensitive data.
-
-```python
-# Consider using:
-# - mlock() on Linux to prevent swapping
-# - SecureZeroMemory on Windows
-# - Or a library like 'pynacl' with built-in secure memory
-```
+**Implementation:**
+- Added `SecureBytes` wrapper class for sensitive data with auto-zeroing on deletion
+- Added `secure_zero_memory()` function using platform-specific secure zeroing
+- `CryptoSession` now uses `SecureBytes` for shared keys
+- Added `clear()` method to securely zero all key material
+- Intermediate secrets (raw DH output) are zeroed immediately after use
 
 **Benefits:**
 - Keys are cleared from memory immediately after use

@@ -664,7 +664,7 @@ class VPSRelaySender:
 
         # Compute reconnect token from NEW shared key
         new_token = _make_reconnect_token(
-            self._crypto._shared_key, self._code
+            self._crypto.get_shared_key(), self._code
         )
 
         # ── 3. Verification ───────────────────────────────────────
@@ -1014,7 +1014,7 @@ class VPSRelayReceiver:
             return None
 
         new_token = _make_reconnect_token(
-            self._crypto._shared_key, self._code
+            self._crypto.get_shared_key(), self._code
         )
 
         # ── 3. Verification ───────────────────────────────────────

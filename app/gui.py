@@ -870,7 +870,6 @@ class App(ctk.CTk):
             ("🔒 Security", "Files are encrypted with AES-256-GCM.\nThe server never sees your data — only encrypted chunks.\nKeys are exchanged using ECDH (Elliptic Curve Diffie-Hellman).", "#1a1a2a", "#9b59b6"),
             (f"📏 Limits", f"Maximum file size: {max_gb} GB\nLarger files may be interrupted by the server.\nFor multiple files, use an archive (ZIP/RAR).", "#2a1a1a", "#e74c3c"),
             ("🔄 Reconnection", "If the connection drops, PhantomShare will try to resume.\nPartial transfers are saved and continued automatically.", "#1a2a3a", "#e67e22"),
-            ("❓ Troubleshooting", f"Check your internet connection.\nRun Diagnostics to test connectivity.\nVisit our website for help:", "#1a2a2a", "#1abc9c", HOMEPAGE_URL),
         ]
 
         for item in help_sections:
