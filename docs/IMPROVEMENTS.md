@@ -131,28 +131,26 @@ python test_relay.py
 
 ---
 
-### 4. Forward Secrecy Verification
+### 4. Forward Secrecy Verification ⏸️ DEFERRED
 
-**Current:** Uses ephemeral X25519 keys (good), but no explicit ratcheting.
+**Status:** Deferred — current ephemeral X25519 keys already provide session-level forward secrecy.
 
-**Recommendation:** Add optional key ratcheting for long sessions or consider implementing the Signal protocol for advanced users.
+**Note:** Key ratcheting (Double Ratchet / Signal protocol) is complex and primarily benefits long-lived sessions. PhantomShare sessions are short-lived (single file transfers), so the current implementation is sufficient. This can be revisited for future multi-file streaming sessions.
 
 ---
 
 ## Performance Improvements
 
-### 1. Parallel Chunk Processing (High Priority)
+### 1. Parallel Chunk Processing (High Priority) ✅ COMPLETED
 
-**Current:** Chunks are encrypted and sent sequentially.
+**Status:** Implemented in v1.0.0
 
-**Recommendation:** Pipeline encryption, compression, and I/O.
-
-```python
-# Use a producer-consumer pattern:
-# Thread 1: Read file chunks → Queue
-# Thread 2: Compress + Encrypt → Queue
-# Thread 3: Send over WebSocket
-```
+**Implementation:**
+- Added `ChunkPipeline` class for producer-consumer pattern
+- Reader thread reads chunks into bounded queue (size: 4 chunks)
+- Main thread processes queue: compress → encrypt → send
+- Back-pressure prevents memory bloat on slow networks
+- Overlaps I/O with CPU work for better throughput
 
 **Expected Gain:** 20-40% throughput improvement on multi-core systems.
 

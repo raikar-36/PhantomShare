@@ -193,6 +193,109 @@ def _decompress(data: bytes) -> bytes:
     return zlib.decompress(data[1:]) if data[0] == _COMPRESS_FLAG else data[1:]
 
 
+# ── Parallel Chunk Processing ──────────────────────────────────────
+
+# Number of chunks to read ahead (bounded queue prevents memory bloat)
+CHUNK_PIPELINE_SIZE = 4
+
+
+class ChunkPipeline:
+    """Pipeline for parallel read → compress/encrypt → send operations.
+    
+    Uses a bounded queue to read chunks ahead while previous chunks
+    are being compressed, encrypted, and sent. This overlaps I/O with
+    CPU work for better throughput on multi-core systems.
+    """
+    
+    def __init__(
+        self,
+        filepath: Path,
+        chunk_size: int,
+        crypto,  # CryptoSession
+        skip_chunks: set,
+        cancelled_flag: threading.Event,
+        connection_lost_flag: threading.Event,
+    ):
+        self._filepath = filepath
+        self._chunk_size = chunk_size
+        self._crypto = crypto
+        self._skip_chunks = skip_chunks
+        self._cancelled = cancelled_flag
+        self._connection_lost = connection_lost_flag
+        
+        # Queue holds (seq, raw_chunk) tuples
+        self._queue: queue.Queue = queue.Queue(maxsize=CHUNK_PIPELINE_SIZE)
+        self._reader_thread: threading.Thread | None = None
+        self._reader_error: Exception | None = None
+        self._done = threading.Event()
+    
+    def start(self, total_chunks: int) -> None:
+        """Start the reader thread."""
+        self._done.clear()
+        self._reader_error = None
+        self._reader_thread = threading.Thread(
+            target=self._reader_worker,
+            args=(total_chunks,),
+            daemon=True,
+        )
+        self._reader_thread.start()
+    
+    def _reader_worker(self, total_chunks: int) -> None:
+        """Background thread that reads chunks into the queue."""
+        try:
+            with open(self._filepath, "rb") as f:
+                for seq in range(total_chunks):
+                    if self._cancelled.is_set() or self._connection_lost.is_set():
+                        break
+                    
+                    if seq in self._skip_chunks:
+                        f.seek((seq + 1) * self._chunk_size)
+                        continue
+                    
+                    chunk = f.read(self._chunk_size)
+                    if not chunk:
+                        break
+                    
+                    # Block if queue is full (back-pressure)
+                    while not (self._cancelled.is_set() or self._connection_lost.is_set()):
+                        try:
+                            self._queue.put((seq, chunk), timeout=0.1)
+                            break
+                        except queue.Full:
+                            continue
+        except Exception as e:
+            self._reader_error = e
+        finally:
+            self._done.set()
+    
+    def get_next(self, timeout: float = 0.5) -> tuple[int, bytes] | None:
+        """Get next (seq, chunk) from pipeline. Returns None when done."""
+        while True:
+            if self._cancelled.is_set() or self._connection_lost.is_set():
+                return None
+            
+            try:
+                return self._queue.get(timeout=timeout)
+            except queue.Empty:
+                if self._done.is_set() and self._queue.empty():
+                    return None
+                continue
+    
+    def is_done(self) -> bool:
+        """Check if reader is done and queue is empty."""
+        return self._done.is_set() and self._queue.empty()
+    
+    def get_error(self) -> Exception | None:
+        """Get any error from reader thread."""
+        return self._reader_error
+    
+    def stop(self) -> None:
+        """Stop the pipeline."""
+        self._cancelled.set()
+        if self._reader_thread and self._reader_thread.is_alive():
+            self._reader_thread.join(timeout=1.0)
+
+
 def _sha256_file(path: Path) -> str:
     h = hashlib.sha256()
     with open(path, "rb") as f:
@@ -733,7 +836,7 @@ class VPSRelaySender:
             resume_bytes = min(resume_bytes, file_size)
             self._log(f"🔄 Resuming: receiver has {len(skip_chunks)}/{total_chunks} chunks ({resume_bytes / (1024**2):.1f} MB)")
 
-        # ── 6. Send file chunks ───────────────────────────────────
+        # ── 6. Send file chunks (pipelined) ──────────────────────────
         from .gui import _human_size
         size_str = _human_size(file_size)
         chunks_to_send = total_chunks - len(skip_chunks)
@@ -749,20 +852,37 @@ class VPSRelaySender:
         if self.on_progress and resume_bytes > 0:
             self.on_progress(sent_bytes, file_size, 0)
 
-        with open(self._filepath, "rb") as f:
-            for seq in range(total_chunks):
+        # Use pipelined chunk reading for better throughput
+        pipeline = ChunkPipeline(
+            filepath=self._filepath,
+            chunk_size=VPS_CHUNK_SIZE,
+            crypto=self._crypto,
+            skip_chunks=skip_chunks,
+            cancelled_flag=threading.Event() if not hasattr(self, '_cancel_event') else self._cancel_event,
+            connection_lost_flag=self._connection_lost,
+        )
+        # Set cancelled flag based on self._cancelled
+        if self._cancelled:
+            pipeline._cancelled.set()
+        
+        pipeline.start(total_chunks)
+        
+        try:
+            while True:
                 if self._cancelled:
+                    pipeline.stop()
                     return False
                 if self._connection_lost.is_set():
-                    return None  # connection lost → retry
-
-                if seq in skip_chunks:
-                    f.seek((seq + 1) * VPS_CHUNK_SIZE)
-                    continue
-
-                chunk = f.read(VPS_CHUNK_SIZE)
-                if not chunk:
+                    pipeline.stop()
+                    return None
+                
+                result = pipeline.get_next()
+                if result is None:
+                    if pipeline.get_error():
+                        log.error("Pipeline read error: %s", pipeline.get_error())
                     break
+                
+                seq, chunk = result
                 self._send_dat(seq, chunk)
                 sent_bytes += len(chunk)
 
@@ -772,6 +892,8 @@ class VPSRelaySender:
                     speed = (sent_bytes - resume_bytes) / elapsed if elapsed > 0 else 0
                     self.on_progress(sent_bytes, file_size, speed)
                     last_prog = now
+        finally:
+            pipeline.stop()
 
         # Final progress
         if self.on_progress:
