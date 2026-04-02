@@ -7,7 +7,12 @@ VPS-only architecture for secure end-to-end encrypted file sharing.
 # ── VPS Relay Server ──────────────────────────────────────────────
 VPS_RELAY_URL = "wss://secureshare-relay.duckdns.org"
 VPS_MAX_FILE_SIZE = 5 * 1024**3        # 5 GiB — server session limit
-VPS_CHUNK_SIZE = 512 * 1024            # 512 KB per WebSocket chunk
+VPS_CHUNK_SIZE = 512 * 1024            # 512 KB — default chunk size
+
+# ── Adaptive Chunk Sizing ─────────────────────────────────────────
+CHUNK_SIZE_MIN = 64 * 1024             # 64 KB minimum (high latency)
+CHUNK_SIZE_MAX = 2 * 1024 * 1024       # 2 MB maximum (low latency, high bandwidth)
+CHUNK_SIZE_ADAPTIVE = True             # Enable adaptive sizing
 
 # ── Certificate Pinning ───────────────────────────────────────────
 # SHA-256 fingerprints of trusted relay server certificates.

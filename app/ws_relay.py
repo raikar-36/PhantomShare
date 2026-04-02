@@ -96,6 +96,9 @@ from .config import (
     RECONNECT_MAX_DELAY,
     VPS_CERT_FINGERPRINTS,
     CERT_PINNING_ENABLED,
+    CHUNK_SIZE_MIN,
+    CHUNK_SIZE_MAX,
+    CHUNK_SIZE_ADAPTIVE,
 )
 from .crypto_utils import (
     CryptoSession,
@@ -191,6 +194,60 @@ def _compress(data: bytes) -> bytes:
 
 def _decompress(data: bytes) -> bytes:
     return zlib.decompress(data[1:]) if data[0] == _COMPRESS_FLAG else data[1:]
+
+
+# ── Adaptive Chunk Sizing ──────────────────────────────────────────
+
+def _measure_connection_latency(host: str, port: int = 443, samples: int = 3) -> float:
+    """Measure TCP connection latency in milliseconds.
+    
+    Returns median of multiple samples for stability.
+    """
+    latencies = []
+    for _ in range(samples):
+        try:
+            t0 = time.perf_counter()
+            with socket.create_connection((host, port), timeout=5) as s:
+                s.close()
+            latency_ms = (time.perf_counter() - t0) * 1000
+            latencies.append(latency_ms)
+        except Exception:
+            latencies.append(500)  # Assume high latency on error
+    
+    latencies.sort()
+    return latencies[len(latencies) // 2]  # median
+
+
+def calculate_adaptive_chunk_size(latency_ms: float, file_size: int = 0) -> int:
+    """Calculate optimal chunk size based on network latency.
+    
+    Lower latency → larger chunks (better throughput)
+    Higher latency → smaller chunks (better responsiveness)
+    
+    The formula balances throughput vs. responsiveness.
+    """
+    if not CHUNK_SIZE_ADAPTIVE:
+        return VPS_CHUNK_SIZE
+    
+    # Base calculation: target ~200ms per chunk round-trip
+    # chunk_size ≈ (200ms / latency_ms) * base_chunk
+    if latency_ms < 10:
+        # Very low latency (local/fast): use max
+        optimal = CHUNK_SIZE_MAX
+    elif latency_ms > 300:
+        # High latency: use min
+        optimal = CHUNK_SIZE_MIN
+    else:
+        # Scale linearly between min and max
+        # latency 10ms → max, latency 300ms → min
+        ratio = (300 - latency_ms) / (300 - 10)
+        optimal = int(CHUNK_SIZE_MIN + ratio * (CHUNK_SIZE_MAX - CHUNK_SIZE_MIN))
+    
+    # Align to 64KB boundaries for efficient I/O
+    optimal = (optimal // (64 * 1024)) * (64 * 1024)
+    
+    # Clamp to configured bounds
+    return max(CHUNK_SIZE_MIN, min(CHUNK_SIZE_MAX, optimal))
 
 
 # ── Parallel Chunk Processing ──────────────────────────────────────
@@ -649,6 +706,7 @@ class VPSRelaySender:
         self._file_hash: Optional[str] = None
         self._transfer_id: Optional[str] = None
         self._reconnect_token: Optional[str] = None
+        self._chunk_size: int = VPS_CHUNK_SIZE  # May be updated by adaptive sizing
 
     def cancel(self) -> None:
         self._cancelled = True
@@ -798,16 +856,26 @@ class VPSRelaySender:
         recv_thread.start()
 
         # ── 5. Send metadata ──────────────────────────────────────
+        # Calculate adaptive chunk size based on connection latency
+        parsed = urlparse(VPS_RELAY_URL)
+        host = parsed.hostname or "secureshare-relay.duckdns.org"
+        if CHUNK_SIZE_ADAPTIVE:
+            latency_ms = _measure_connection_latency(host, 443, samples=2)
+            self._chunk_size = calculate_adaptive_chunk_size(latency_ms)
+            self._log(f"📊 Adaptive chunk: {self._chunk_size // 1024} KB (latency: {latency_ms:.0f} ms)")
+        else:
+            self._chunk_size = VPS_CHUNK_SIZE
+        
         file_name    = self._filepath.name
         file_size    = self._filepath.stat().st_size
-        total_chunks = (file_size + VPS_CHUNK_SIZE - 1) // VPS_CHUNK_SIZE
+        total_chunks = (file_size + self._chunk_size - 1) // self._chunk_size
 
         self._send_ctl(json.dumps({
             "type":         "relay_meta",
             "name":         file_name,
             "size":         file_size,
             "sha256":       self._file_hash,
-            "chunk_size":   VPS_CHUNK_SIZE,
+            "chunk_size":   self._chunk_size,
             "total_chunks": total_chunks,
             "transfer_id":  self._transfer_id,
         }).encode())
@@ -829,10 +897,10 @@ class VPSRelaySender:
         if ack.get("resume"):
             already = ack.get("received_chunks", [])
             skip_chunks = set(already)
-            resume_bytes = len(skip_chunks) * VPS_CHUNK_SIZE
+            resume_bytes = len(skip_chunks) * self._chunk_size
             if total_chunks - 1 in skip_chunks:
-                last_chunk_size = file_size - (total_chunks - 1) * VPS_CHUNK_SIZE
-                resume_bytes = resume_bytes - VPS_CHUNK_SIZE + last_chunk_size
+                last_chunk_actual = file_size - (total_chunks - 1) * self._chunk_size
+                resume_bytes = resume_bytes - self._chunk_size + last_chunk_actual
             resume_bytes = min(resume_bytes, file_size)
             self._log(f"🔄 Resuming: receiver has {len(skip_chunks)}/{total_chunks} chunks ({resume_bytes / (1024**2):.1f} MB)")
 
@@ -855,7 +923,7 @@ class VPSRelaySender:
         # Use pipelined chunk reading for better throughput
         pipeline = ChunkPipeline(
             filepath=self._filepath,
-            chunk_size=VPS_CHUNK_SIZE,
+            chunk_size=self._chunk_size,
             crypto=self._crypto,
             skip_chunks=skip_chunks,
             cancelled_flag=threading.Event() if not hasattr(self, '_cancel_event') else self._cancel_event,
@@ -945,8 +1013,8 @@ class VPSRelaySender:
                             return False
                         if self._connection_lost.is_set():
                             return None
-                        f.seek(seq_i * VPS_CHUNK_SIZE)
-                        chunk = f.read(VPS_CHUNK_SIZE)
+                        f.seek(seq_i * self._chunk_size)
+                        chunk = f.read(self._chunk_size)
                         if chunk:
                             self._send_dat(seq_i, chunk)
                 self._send_ctl(done_payload)

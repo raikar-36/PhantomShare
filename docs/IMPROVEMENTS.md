@@ -156,19 +156,19 @@ python test_relay.py
 
 ---
 
-### 2. Adaptive Chunk Sizing
+### 2. Adaptive Chunk Sizing ✅ COMPLETED
 
-**Current:** Fixed 512 KB chunks.
+**Status:** Implemented in v1.0.0
 
-**Recommendation:** Dynamically adjust based on network conditions.
-
-```python
-def adaptive_chunk_size(latency_ms, bandwidth_mbps):
-    # Smaller chunks for high-latency connections
-    # Larger chunks for high-bandwidth connections
-    optimal = int(bandwidth_mbps * latency_ms / 8)
-    return max(64 * 1024, min(2 * 1024 * 1024, optimal))
-```
+**Implementation:**
+- Added `CHUNK_SIZE_MIN` (64 KB) and `CHUNK_SIZE_MAX` (2 MB) in config
+- Added `CHUNK_SIZE_ADAPTIVE` flag to enable/disable
+- Added `_measure_connection_latency()` to measure TCP latency
+- Added `calculate_adaptive_chunk_size()` that scales linearly:
+  - Low latency (<10ms) → max chunk (2 MB)
+  - High latency (>300ms) → min chunk (64 KB)
+  - Middle → proportional sizing
+- Chunk size displayed in transfer log
 
 ---
 
