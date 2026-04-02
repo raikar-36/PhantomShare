@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+dist/
+build/
+
+# PyInstaller
+*.manifest
+
+# Virtual environment
+venv/
+.venv/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Project-specific
+tools/
+releases/
+*.exe
+*.pfx
+*.cer
+.env
+
+# Local-only scripts & sensitive data
+sign.ps1
+server/VPS_INFO.md
+PENTEST_SCOPE.md
+OSSRequestForm*.xlsx
+CREDENTIALS.md
+MARKETING.md
