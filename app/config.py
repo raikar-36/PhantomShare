@@ -9,6 +9,16 @@ VPS_RELAY_URL = "wss://secureshare-relay.duckdns.org"
 VPS_MAX_FILE_SIZE = 5 * 1024**3        # 5 GiB — server session limit
 VPS_CHUNK_SIZE = 512 * 1024            # 512 KB per WebSocket chunk
 
+# ── Certificate Pinning ───────────────────────────────────────────
+# SHA-256 fingerprints of trusted relay server certificates.
+# Multiple fingerprints allow for certificate rotation.
+# To get a certificate fingerprint:
+#   openssl s_client -connect host:443 | openssl x509 -outform DER | sha256sum
+VPS_CERT_FINGERPRINTS = [
+    "7b0688cfaa5ff53f53940f30b706d26ce4decdc0cac96f96baf09209f132caf3",
+]
+CERT_PINNING_ENABLED = True  # Set to False to disable pinning (dev only)
+
 # ── Protocol Version ──────────────────────────────────────────────
 PROTOCOL_VERSION     = 1   # current wire-protocol version
 MIN_PROTOCOL_VERSION = 1   # minimum compatible version (reject older)

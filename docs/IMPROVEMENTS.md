@@ -86,20 +86,16 @@ python test_relay.py
 
 ## Security Improvements
 
-### 1. Certificate Pinning (High Priority)
+### 1. Certificate Pinning (High Priority) ✅ COMPLETED
 
-**Current:** Relies solely on system CA store for TLS validation.
+**Status:** Implemented in v1.0.0
 
-**Recommendation:** Implement certificate pinning for the relay server.
-
-```python
-# Example: Pin the relay server's certificate
-RELAY_CERT_FINGERPRINT = "SHA256:abc123..."
-
-def verify_certificate(cert):
-    actual = hashlib.sha256(cert).hexdigest()
-    return hmac.compare_digest(actual, RELAY_CERT_FINGERPRINT)
-```
+**Implementation:**
+- Added `VPS_CERT_FINGERPRINTS` list in `config.py` for pinned SHA-256 fingerprints
+- Added `CERT_PINNING_ENABLED` flag for development flexibility
+- Implemented `_verify_cert_pinning()` in `ws_relay.py` with timing-safe comparison
+- Both sender and receiver verify certificate before WebSocket connection
+- Supports multiple fingerprints for certificate rotation
 
 **Benefits:**
 - Prevents MITM attacks even if a CA is compromised

@@ -53,12 +53,14 @@ import json
 import logging
 import queue
 import socket
+import ssl
 import struct
 import threading
 import time
 import zlib
 from pathlib import Path
 from typing import Callable, Optional
+from urllib.parse import urlparse
 
 log = logging.getLogger(__name__)
 
@@ -92,6 +94,8 @@ from .config import (
     RECONNECT_MAX_RETRIES,
     RECONNECT_BASE_DELAY,
     RECONNECT_MAX_DELAY,
+    VPS_CERT_FINGERPRINTS,
+    CERT_PINNING_ENABLED,
 )
 from .crypto_utils import (
     CryptoSession,
@@ -99,6 +103,72 @@ from .crypto_utils import (
     signaling_encrypt,
     signaling_decrypt,
 )
+
+# ── Certificate Pinning ────────────────────────────────────────────
+
+class CertificatePinningError(Exception):
+    """Raised when server certificate doesn't match pinned fingerprints."""
+    pass
+
+
+def _get_cert_fingerprint(cert_der: bytes) -> str:
+    """Compute SHA-256 fingerprint of a DER-encoded certificate."""
+    return hashlib.sha256(cert_der).hexdigest()
+
+
+def _verify_cert_pinning(host: str, port: int = 443) -> bool:
+    """
+    Verify the server's certificate against pinned fingerprints.
+    
+    Returns True if pinning is disabled or certificate matches.
+    Raises CertificatePinningError if certificate doesn't match.
+    """
+    if not CERT_PINNING_ENABLED:
+        return True
+    
+    if not VPS_CERT_FINGERPRINTS:
+        log.warning("Certificate pinning enabled but no fingerprints configured")
+        return True
+    
+    try:
+        ctx = ssl.create_default_context()
+        with socket.create_connection((host, port), timeout=10) as sock:
+            with ctx.wrap_socket(sock, server_hostname=host) as ssock:
+                cert_der = ssock.getpeercert(binary_form=True)
+                fingerprint = _get_cert_fingerprint(cert_der)
+                
+                # Timing-safe comparison for each pinned fingerprint
+                for pinned in VPS_CERT_FINGERPRINTS:
+                    if hmac.compare_digest(fingerprint.lower(), pinned.lower()):
+                        log.debug(f"Certificate pinning verified for {host}")
+                        return True
+                
+                log.error(
+                    f"Certificate pinning failed for {host}. "
+                    f"Got fingerprint: {fingerprint}"
+                )
+                raise CertificatePinningError(
+                    f"Server certificate fingerprint mismatch. "
+                    f"Expected one of {len(VPS_CERT_FINGERPRINTS)} pinned certificates."
+                )
+    except CertificatePinningError:
+        raise
+    except ssl.SSLCertVerificationError as e:
+        log.error(f"SSL certificate verification failed: {e}")
+        raise CertificatePinningError(f"SSL verification failed: {e}")
+    except Exception as e:
+        log.warning(f"Could not verify certificate pinning: {e}")
+        # On network errors, don't block — let the WebSocket handle it
+        return True
+
+
+def _create_pinned_ssl_context() -> ssl.SSLContext:
+    """Create an SSL context for WebSocket connections."""
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = True
+    ctx.verify_mode = ssl.CERT_REQUIRED
+    return ctx
+
 
 ProgressCB = Callable[[int, int, float], None]
 StatusCB   = Callable[[str], None]
@@ -559,8 +629,19 @@ class VPSRelaySender:
             self._log("🌐 Reconnecting to relay server...")
         else:
             self._log("🌐 Connecting to relay server...")
+        
+        # Verify certificate pinning before connecting
         try:
-            self._ws = websocket.WebSocket()
+            parsed = urlparse(VPS_RELAY_URL)
+            host = parsed.hostname or "secureshare-relay.duckdns.org"
+            port = parsed.port or 443
+            _verify_cert_pinning(host, port)
+        except CertificatePinningError as e:
+            self._log(f"❌ Security error: {e}")
+            return False  # Permanent failure — don't retry with bad cert
+        
+        try:
+            self._ws = websocket.WebSocket(sslopt={"ssl_context": _create_pinned_ssl_context()})
             self._ws.connect(VPS_RELAY_URL, timeout=30)
             self._ws.settimeout(300)       # 5 min to wait for peer
             self._ws.send(self._code)      # register session code
@@ -898,8 +979,20 @@ class VPSRelayReceiver:
             self._log("🌐 Reconnecting to relay server...")
         else:
             self._log("🌐 Connecting to relay server...")
+        
+        # Verify certificate pinning before connecting
         try:
-            self._ws = websocket.WebSocket()
+            parsed = urlparse(VPS_RELAY_URL)
+            host = parsed.hostname or "secureshare-relay.duckdns.org"
+            port = parsed.port or 443
+            _verify_cert_pinning(host, port)
+        except CertificatePinningError as e:
+            self._log(f"❌ Security error: {e}")
+            self._retryable = False  # Permanent failure — don't retry with bad cert
+            return None
+        
+        try:
+            self._ws = websocket.WebSocket(sslopt={"ssl_context": _create_pinned_ssl_context()})
             self._ws.connect(VPS_RELAY_URL, timeout=30)
             self._ws.settimeout(300)
             self._ws.send(self._code)
