@@ -187,7 +187,80 @@ _RAW_FLAG      = 0x00
 
 # ── Compression helpers ────────────────────────────────────────────
 
+# File extensions that are already compressed (skip compression)
+COMPRESSED_EXTENSIONS = {
+    # Archives
+    '.zip', '.7z', '.rar', '.gz', '.bz2', '.xz', '.lz4', '.zst', '.tar.gz', '.tgz',
+    # Images
+    '.jpg', '.jpeg', '.png', '.gif', '.webp', '.heic', '.heif', '.avif',
+    # Video
+    '.mp4', '.mkv', '.avi', '.mov', '.webm', '.m4v', '.wmv', '.flv',
+    # Audio
+    '.mp3', '.aac', '.ogg', '.opus', '.m4a', '.flac', '.wma',
+    # Documents (already compressed)
+    '.pdf', '.docx', '.xlsx', '.pptx', '.odt', '.ods', '.odp',
+    # Other
+    '.apk', '.ipa', '.dmg', '.iso',
+}
+
+# Compression mode for current file (set per-transfer)
+_compression_enabled = True
+
+
+def _calculate_entropy(data: bytes) -> float:
+    """Calculate Shannon entropy of data (bits per byte).
+    
+    High entropy (>7.5) indicates already-compressed or random data.
+    Low entropy (<6.0) indicates highly compressible data.
+    """
+    if not data:
+        return 0.0
+    
+    from collections import Counter
+    import math
+    
+    counts = Counter(data)
+    length = len(data)
+    entropy = 0.0
+    
+    for count in counts.values():
+        if count > 0:
+            p = count / length
+            entropy -= p * math.log2(p)
+    
+    return entropy
+
+
+def should_compress(filename: str, sample_data: bytes = b"") -> bool:
+    """Determine if file should be compressed based on extension and entropy.
+    
+    Returns False for already-compressed file types or high-entropy data.
+    """
+    ext = Path(filename).suffix.lower()
+    
+    # Check extension first (fast path)
+    if ext in COMPRESSED_EXTENSIONS:
+        return False
+    
+    # For double extensions like .tar.gz
+    name_lower = Path(filename).name.lower()
+    if any(name_lower.endswith(ext) for ext in ['.tar.gz', '.tar.bz2', '.tar.xz']):
+        return False
+    
+    # Check entropy of sample data if provided
+    if sample_data and len(sample_data) >= 1024:
+        entropy = _calculate_entropy(sample_data[:4096])
+        if entropy > 7.5:  # Already compressed or encrypted
+            return False
+    
+    return True
+
+
 def _compress(data: bytes) -> bytes:
+    """Compress data with zlib level 1 if beneficial."""
+    if not _compression_enabled:
+        return bytes([_RAW_FLAG]) + data
+    
     c = zlib.compress(data, level=1)
     return (bytes([_COMPRESS_FLAG]) + c) if len(c) < len(data) - 64 else (bytes([_RAW_FLAG]) + data)
 
@@ -869,6 +942,14 @@ class VPSRelaySender:
         file_name    = self._filepath.name
         file_size    = self._filepath.stat().st_size
         total_chunks = (file_size + self._chunk_size - 1) // self._chunk_size
+        
+        # Determine if compression should be used for this file
+        global _compression_enabled
+        with open(self._filepath, "rb") as f:
+            sample = f.read(4096)
+        _compression_enabled = should_compress(file_name, sample)
+        if not _compression_enabled:
+            self._log(f"📦 Compression: disabled (pre-compressed file)")
 
         self._send_ctl(json.dumps({
             "type":         "relay_meta",

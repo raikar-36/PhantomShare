@@ -172,22 +172,18 @@ python test_relay.py
 
 ---
 
-### 3. Smarter Compression
+### 3. Smarter Compression ✅ COMPLETED
 
-**Current:** Uses zlib level 1 for all chunks.
+**Status:** Implemented in v1.0.0
 
-**Recommendation:** Detect file type and skip compression for already-compressed files.
-
-```python
-COMPRESSED_EXTENSIONS = {'.zip', '.7z', '.rar', '.mp4', '.jpg', '.png', '.mp3'}
-
-def should_compress(filename, sample_data):
-    ext = Path(filename).suffix.lower()
-    if ext in COMPRESSED_EXTENSIONS:
-        return False
-    # Also check entropy of sample
-    return calculate_entropy(sample_data) < 7.5
-```
+**Implementation:**
+- Added `COMPRESSED_EXTENSIONS` set with 40+ pre-compressed file types
+- Added `_calculate_entropy()` for Shannon entropy calculation
+- Added `should_compress()` that checks:
+  - File extension against known compressed formats
+  - Data entropy (>7.5 = already compressed/encrypted)
+- Compression skipped for video, audio, images, archives, etc.
+- Status logged when compression is disabled
 
 ---
 
