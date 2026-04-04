@@ -2,17 +2,68 @@
 PhantomShare — configuration constants.
 
 VPS-only architecture for secure end-to-end encrypted file sharing.
+
+Configuration priority (highest to lowest):
+  1. Environment variables (PHANTOMSHARE_*)
+  2. Config file (~/.phantomshare/config.json)
+  3. Default values below
 """
 
+import json
+import os
+from pathlib import Path
+
+# ── Configuration File ────────────────────────────────────────────
+CONFIG_DIR = Path.home() / ".phantomshare"
+CONFIG_FILE = CONFIG_DIR / "config.json"
+
+
+def _load_config_file() -> dict:
+    """Load configuration from JSON file if it exists."""
+    if CONFIG_FILE.exists():
+        try:
+            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {}
+
+
+def _get_config(key: str, default, env_prefix: str = "PHANTOMSHARE_"):
+    """Get config value with environment variable override.
+    
+    Priority: env var > config file > default
+    """
+    # Check environment variable first
+    env_key = f"{env_prefix}{key.upper()}"
+    env_val = os.environ.get(env_key)
+    if env_val is not None:
+        # Type conversion based on default type
+        if isinstance(default, bool):
+            return env_val.lower() in ("true", "1", "yes")
+        elif isinstance(default, int):
+            return int(env_val)
+        elif isinstance(default, float):
+            return float(env_val)
+        return env_val
+    
+    # Check config file
+    config = _load_config_file()
+    if key in config:
+        return config[key]
+    
+    return default
+
+
 # ── VPS Relay Server ──────────────────────────────────────────────
-VPS_RELAY_URL = "wss://secureshare-relay.duckdns.org"
-VPS_MAX_FILE_SIZE = 5 * 1024**3        # 5 GiB — server session limit
-VPS_CHUNK_SIZE = 512 * 1024            # 512 KB — default chunk size
+VPS_RELAY_URL = _get_config("relay_url", "wss://secureshare-relay.duckdns.org")
+VPS_MAX_FILE_SIZE = _get_config("max_file_size", 5 * 1024**3)  # 5 GiB
+VPS_CHUNK_SIZE = _get_config("chunk_size", 512 * 1024)  # 512 KB default
 
 # ── Adaptive Chunk Sizing ─────────────────────────────────────────
-CHUNK_SIZE_MIN = 64 * 1024             # 64 KB minimum (high latency)
-CHUNK_SIZE_MAX = 2 * 1024 * 1024       # 2 MB maximum (low latency, high bandwidth)
-CHUNK_SIZE_ADAPTIVE = True             # Enable adaptive sizing
+CHUNK_SIZE_MIN = _get_config("chunk_size_min", 64 * 1024)  # 64 KB
+CHUNK_SIZE_MAX = _get_config("chunk_size_max", 2 * 1024 * 1024)  # 2 MB
+CHUNK_SIZE_ADAPTIVE = _get_config("chunk_size_adaptive", True)
 
 # ── Certificate Pinning ───────────────────────────────────────────
 # SHA-256 fingerprints of trusted relay server certificates.
@@ -22,23 +73,23 @@ CHUNK_SIZE_ADAPTIVE = True             # Enable adaptive sizing
 VPS_CERT_FINGERPRINTS = [
     "7b0688cfaa5ff53f53940f30b706d26ce4decdc0cac96f96baf09209f132caf3",
 ]
-CERT_PINNING_ENABLED = True  # Set to False to disable pinning (dev only)
+CERT_PINNING_ENABLED = _get_config("cert_pinning", True)
 
 # ── Protocol Version ──────────────────────────────────────────────
 PROTOCOL_VERSION     = 1   # current wire-protocol version
 MIN_PROTOCOL_VERSION = 1   # minimum compatible version (reject older)
 
 # ── Session ────────────────────────────────────────────────────────
-SESSION_CODE_LENGTH = 10  # 36^10 ≈ 3.6 quadrillion combinations
+SESSION_CODE_LENGTH = _get_config("session_code_length", 10)
 
 # ── Resume ─────────────────────────────────────────────────────────
 RESUME_MANIFEST_EXT  = ".resume"          # manifest file extension
-RESUME_MAX_AGE       = 7 * 24 * 3600      # 7 days — auto-cleanup
+RESUME_MAX_AGE       = _get_config("resume_max_age", 7 * 24 * 3600)  # 7 days
 RESUME_SAVE_INTERVAL = 64                 # save manifest every N chunks
 
 # ── Auto-reconnect ────────────────────────────────────────────────
-RECONNECT_MAX_RETRIES = 5                 # max reconnect attempts
-RECONNECT_BASE_DELAY  = 5                 # seconds (exponential backoff)
+RECONNECT_MAX_RETRIES = _get_config("reconnect_retries", 5)
+RECONNECT_BASE_DELAY  = _get_config("reconnect_delay", 5)  # seconds
 RECONNECT_MAX_DELAY   = 60                # seconds cap
 
 # ── App ────────────────────────────────────────────────────────────

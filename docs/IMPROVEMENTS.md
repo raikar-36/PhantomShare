@@ -187,66 +187,46 @@ python test_relay.py
 
 ---
 
-### 4. Connection Pooling
+### 4. Connection Pooling ⏸️ DEFERRED
 
-**Current:** Single WebSocket connection per transfer.
+**Status:** Deferred — requires significant protocol changes and relay server modifications.
 
-**Recommendation:** Support multiple parallel connections for large files.
-
-```python
-# Split large files across N connections
-# Reassemble on receiver side
-# Improves throughput on high-latency links
-```
+**Note:** Connection pooling for parallel chunk transfers would require:
+- Relay server support for multi-connection sessions
+- Complex chunk reassembly logic
+- Higher server resource usage
+The current single-connection with pipelining provides good performance for most use cases.
 
 ---
 
 ## Code Quality & Architecture
 
-### 1. Async Client Implementation (Medium Priority)
+### 1. Async Client Implementation (Medium Priority) ⏸️ DEFERRED
 
-**Current:** Uses synchronous `websocket-client` with threads.
+**Status:** Deferred — major architectural refactor
 
-**Recommendation:** Migrate to `asyncio` with `websockets` library.
-
-```python
-# Benefits:
-# - Cleaner code, no thread synchronization issues
-# - Better resource utilization
-# - Consistent with the server (already async)
-# - Easier to add features like parallel transfers
-```
+**Note:** Migrating from synchronous websocket-client to asyncio would require rewriting most of ws_relay.py and gui.py. The current threaded implementation works well and the pipelining improvements already provide good performance.
 
 ---
 
-### 2. Separate GUI from Business Logic
+### 2. Separate GUI from Business Logic ⏸️ DEFERRED
 
-**Current:** `gui.py` mixes UI with transfer orchestration.
+**Status:** Deferred — medium-scale refactor
 
-**Recommendation:** Extract transfer logic into a separate module.
-
-```
-app/
-├── gui.py              # Pure UI code
-├── transfer_manager.py # NEW: Orchestration logic
-├── sender.py           # NEW: Send-specific logic
-└── receiver.py         # NEW: Receive-specific logic
-```
+**Note:** While separating concerns would improve maintainability, the current structure works and the transfer logic in ws_relay.py is already well-isolated from the GUI.
 
 ---
 
-### 3. Configuration Management
+### 3. Configuration Management ✅ COMPLETED
 
-**Current:** Hardcoded values in `config.py`.
+**Status:** Implemented in v1.0.0
 
-**Recommendation:** Support environment variables and config files.
-
-```python
-# Allow overrides via:
-# 1. Environment variables: PHANTOMSHARE_RELAY_URL
-# 2. Config file: ~/.phantomshare/config.json
-# 3. Command-line arguments
-```
+**Implementation:**
+- Added `_get_config()` helper for layered configuration
+- Configuration priority: env vars > config file > defaults
+- Environment variables use `PHANTOMSHARE_` prefix
+- Config file: `~/.phantomshare/config.json`
+- Supports: relay_url, chunk sizes, cert pinning, reconnect settings
 
 ---
 
