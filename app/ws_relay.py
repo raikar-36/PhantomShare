@@ -106,13 +106,16 @@ from .crypto_utils import (
     signaling_encrypt,
     signaling_decrypt,
 )
+from .exceptions import (
+    CertificatePinningError,
+    NetworkError,
+    TransferError,
+    TransferCancelledError,
+    IntegrityError,
+    ProtocolError,
+)
 
 # ── Certificate Pinning ────────────────────────────────────────────
-
-class CertificatePinningError(Exception):
-    """Raised when server certificate doesn't match pinned fingerprints."""
-    pass
-
 
 def _get_cert_fingerprint(cert_der: bytes) -> str:
     """Compute SHA-256 fingerprint of a DER-encoded certificate."""

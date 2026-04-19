@@ -230,38 +230,30 @@ The current single-connection with pipelining provides good performance for most
 
 ---
 
-### 4. Type Hints Completion
+### 4. Type Hints Completion ⏸️ DEFERRED
 
-**Current:** Partial type hints.
+**Status:** Deferred — requires extensive changes across all modules.
 
-**Recommendation:** Add comprehensive type hints and enable `mypy` strict mode.
-
-```bash
-# Add to CI pipeline:
-mypy app/ --strict
-```
+**Note:** Adding strict type hints would be beneficial but requires:
+- Type annotations for all functions and classes
+- mypy configuration and CI integration
+- Resolution of dynamic typing patterns
+Can be done incrementally in future releases.
 
 ---
 
-### 5. Error Handling Improvements
+### 5. Error Handling Improvements ✅ COMPLETED
 
-**Current:** Some generic exception catches.
+**Status:** Implemented in v1.0.0
 
-**Recommendation:** Define custom exception hierarchy.
-
-```python
-class PhantomShareError(Exception):
-    """Base exception for all app errors."""
-
-class CryptoError(PhantomShareError):
-    """Encryption/decryption failed."""
-
-class TransferError(PhantomShareError):
-    """File transfer failed."""
-
-class NetworkError(PhantomShareError):
-    """Connection issues."""
-```
+**Implementation:**
+- Created `app/exceptions.py` with custom exception hierarchy
+- Base: `PhantomShareError`
+- Crypto: `CryptoError`, `KeyExchangeError`, `VerificationError`
+- Transfer: `TransferError`, `TransferCancelledError`, `IntegrityError`, `ResumeError`
+- Network: `NetworkError`, `ConnectionLostError`, `RelayServerError`, `CertificatePinningError`
+- Protocol: `ProtocolError`
+- Config: `ConfigurationError`
 
 ---
 
