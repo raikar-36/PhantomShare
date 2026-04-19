@@ -312,17 +312,16 @@ Can be done incrementally in future releases.
 
 ---
 
-### 5. QR Code for Session Sharing
+### 5. QR Code for Session Sharing ✅ COMPLETED
 
-**Current:** Manual code entry.
+**Status:** Implemented in v1.0.0
 
-**Recommendation:** Generate QR code for session code.
-
-```python
-# Use qrcode library
-# Display in popup for easy mobile scanning
-# Useful for in-person transfers
-```
+**Implementation:**
+- Added QR code button (📱) next to copy button in sender tab
+- Clicking shows popup with QR code for easy mobile scanning
+- Uses qrcode library with PIL for rendering
+- 300x300px QR code with error correction
+- Useful for in-person file transfers
 
 ---
 

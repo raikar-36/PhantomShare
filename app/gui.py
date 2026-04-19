@@ -384,7 +384,20 @@ class App(ctk.CTk):
             command=self._copy_session_code,
             state="disabled",
         )
-        self.copy_code_btn.pack(side="left")
+        self.copy_code_btn.pack(side="left", padx=(0, 6))
+        
+        self.qr_code_btn = ctk.CTkButton(
+            code_inner,
+            text="📱",
+            width=36,
+            height=36,
+            font=ctk.CTkFont(size=16),
+            fg_color="#555555",
+            hover_color="#666666",
+            command=self._show_qr_code,
+            state="disabled",
+        )
+        self.qr_code_btn.pack(side="left")
 
         self._send_hint_lbl = ctk.CTkLabel(
             code_frame,
@@ -528,6 +541,68 @@ class App(ctk.CTk):
             old_text = self.copy_code_btn.cget("text")
             self.copy_code_btn.configure(text="✓")
             self.after(1500, lambda: self.copy_code_btn.configure(text=old_text))
+    
+    def _show_qr_code(self):
+        """Display QR code for session code."""
+        code = self.send_code_label.cget("text")
+        if not code or code == "— — — —":
+            return
+        
+        try:
+            import qrcode
+            from PIL import Image, ImageTk
+        except ImportError:
+            messagebox.showinfo(
+                "QR Code",
+                "QR code feature requires 'qrcode' package.\nInstall with: pip install qrcode[pil]"
+            )
+            return
+        
+        # Generate QR code
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_L,
+            box_size=10,
+            border=4,
+        )
+        qr.add_data(code)
+        qr.make(fit=True)
+        
+        img = qr.make_image(fill_color="black", back_color="white")
+        img = img.resize((300, 300), Image.Resampling.NEAREST)
+        
+        # Create popup window
+        popup = ctk.CTkToplevel(self)
+        popup.title("Session Code QR")
+        popup.geometry("350x400")
+        popup.resizable(False, False)
+        popup.transient(self)
+        popup.grab_set()
+        
+        # Center the popup
+        popup.update_idletasks()
+        x = self.winfo_x() + (self.winfo_width() - 350) // 2
+        y = self.winfo_y() + (self.winfo_height() - 400) // 2
+        popup.geometry(f"+{x}+{y}")
+        
+        ctk.CTkLabel(
+            popup,
+            text=f"Scan to receive: {code}",
+            font=ctk.CTkFont(size=13, weight="bold"),
+        ).pack(pady=(15, 10))
+        
+        # Display QR code
+        photo = ImageTk.PhotoImage(img)
+        label = ctk.CTkLabel(popup, image=photo, text="")
+        label.image = photo  # Keep reference
+        label.pack(pady=10)
+        
+        ctk.CTkButton(
+            popup,
+            text="Close",
+            width=100,
+            command=popup.destroy,
+        ).pack(pady=(10, 15))
 
     def _paste_session_code(self):
         """Paste session code from clipboard into the receive code entry."""
@@ -984,6 +1059,9 @@ class App(ctk.CTk):
             self.recv_btn.configure(state=state)
             self.cancel_btn.configure(state=cancel_state)
             self.copy_code_btn.configure(
+                state="normal" if not enabled else "disabled"
+            )
+            self.qr_code_btn.configure(
                 state="normal" if not enabled else "disabled"
             )
         self.after(0, _do)
