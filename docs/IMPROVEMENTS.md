@@ -325,83 +325,109 @@ Can be done incrementally in future releases.
 
 ---
 
-### 6. macOS Native Build
+### 6. macOS Native Build ⏸️ DEFERRED
 
-**Current:** macOS users must run from source.
-
-**Recommendation:** Add macOS build pipeline.
-
-```yaml
-# GitHub Actions job for macOS:
-- os: macos-latest
-  spec: PhantomShare-macos.spec
-```
+**Status:** Deferred — CI/CD pipeline enhancement for future release.
 
 ---
 
-### 7. Dark/Light Theme Toggle
+### 7. Dark/Light Theme Toggle ⏸️ DEFERRED
 
-**Current:** Fixed dark mode.
-
-**Recommendation:** Add theme preference in settings.
+**Status:** Deferred — UI enhancement, not critical for functionality.
 
 ---
 
-### 8. Bandwidth Limiting
+### 8. Bandwidth Limiting ⏸️ DEFERRED
 
-**Current:** No rate limiting on client.
-
-**Recommendation:** Allow users to set upload/download limits.
-
-```python
-# Useful for:
-# - Not saturating shared connections
-# - Running transfers in background
-```
+**Status:** Deferred — Can be added in future release based on user demand.
 
 ---
 
 ## Testing & CI/CD
 
-### 1. Client-Side Unit Tests (High Priority)
+### 1. Client-Side Unit Tests (High Priority) ⏸️ DEFERRED
 
-**Current:** Server has tests (`test_relay.py`), client has none.
-
-**Recommendation:** Add comprehensive client tests.
-
-```python
-# test_crypto_utils.py
-# test_ws_relay.py
-# test_updater.py
-# test_resume.py
-```
+**Status:** Deferred — comprehensive testing framework setup needed.
 
 ---
 
-### 2. Integration Tests
+### 2. Integration Tests ⏸️ DEFERRED
 
-**Current:** Only server integration tests.
-
-**Recommendation:** Add end-to-end tests.
-
-```python
-# Spin up local relay server
-# Run sender + receiver in test process
-# Verify file integrity
-```
+**Status:** Deferred — requires test infrastructure.
 
 ---
 
-### 3. Code Coverage
+### 3. Code Coverage ⏸️ DEFERRED
 
-**Current:** No coverage reporting.
+**Status:** Deferred — part of testing infrastructure.
 
-**Recommendation:** Add coverage to CI.
+---
 
-```yaml
-- run: pytest --cov=app --cov-report=xml
-- uses: codecov/codecov-action@v3
-```
+### 4. Security Scanning ⏸️ DEFERRED
+
+**Status:** Deferred — CI/CD enhancement.
+
+---
+
+### 5. Cross-Platform CI Matrix ⏸️ DEFERRED
+
+**Status:** Deferred — CI/CD enhancement.
+
+---
+
+## Documentation
+
+### 1-4. Documentation Improvements ⏸️ DEFERRED
+
+**Status:** Deferred — comprehensive documentation overhaul.
+
+---
+
+## Infrastructure
+
+### 5. Rate Limiting Improvements ⏸️ DEFERRED
+
+**Status:** Deferred — requires relay server changes (avoided per user request).
+
+**Note:** The user requested NOT to modify relay server logic, so rate limiting improvements are out of scope.
+
+---
+
+## Summary
+
+**Completed Improvements: 9**
+
+**Security (3):**
+- ✅ Certificate Pinning
+- ✅ Secure Memory Handling
+- ✅ Session Code Entropy (10 chars)
+- ⏸️ Forward Secrecy (already has ephemeral keys)
+
+**Performance (3):**
+- ✅ Parallel Chunk Processing
+- ✅ Adaptive Chunk Sizing  
+- ✅ Smart Compression
+- ⏸️ Connection Pooling (requires protocol changes)
+
+**Code Quality (2):**
+- ⏸️ Async Client (major refactor)
+- ⏸️ GUI Separation (medium refactor)
+- ✅ Configuration Management
+- ⏸️ Type Hints (extensive work)
+- ✅ Error Handling (custom exceptions)
+
+**Features (1):**
+- ⏸️ Multi-File Transfer (protocol changes)
+- ⏸️ Transfer Queuing
+- ⏸️ Drag-and-Drop
+- ⏸️ Transfer History
+- ✅ QR Code Sharing
+- ⏸️ macOS Build
+- ⏸️ Theme Toggle
+- ⏸️ Bandwidth Limiting
+
+**Testing/Docs/Infrastructure:**
+- All deferred (infrastructure enhancements)
 
 ---
 
