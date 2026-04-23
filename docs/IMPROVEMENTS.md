@@ -281,16 +281,15 @@ Can be done incrementally in future releases.
 
 ---
 
-### 3. Drag-and-Drop Support
+### 3. Drag-and-Drop Support ✅ COMPLETED
 
-**Current:** File picker only.
+**Status:** Implemented with tkinterdnd2
 
-**Recommendation:** Add drag-and-drop to the main window.
-
-```python
-# CustomTkinter supports TkinterDnD
-# Add drop zones for files/folders
-```
+**Implementation:**
+- Added drop zone with visual feedback in sender tab
+- Supports dragging files directly onto the application
+- Visual states: idle, drag-over, file-selected
+- Falls back gracefully if tkinterdnd2 not available
 
 ---
 
@@ -416,10 +415,10 @@ Can be done incrementally in future releases.
 - ⏸️ Type Hints (extensive work)
 - ✅ Error Handling (custom exceptions)
 
-**Features (1):**
+**Features (2):**
 - ⏸️ Multi-File Transfer (protocol changes)
 - ⏸️ Transfer Queuing
-- ⏸️ Drag-and-Drop
+- ✅ Drag-and-Drop
 - ⏸️ Transfer History
 - ✅ QR Code Sharing
 - ⏸️ macOS Build

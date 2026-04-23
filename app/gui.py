@@ -28,6 +28,13 @@ import customtkinter as ctk
 
 import webbrowser
 
+# Drag-and-drop support (optional)
+try:
+    from tkinterdnd2 import DND_FILES, TkinterDnD
+    _HAS_DND = True
+except ImportError:
+    _HAS_DND = False
+
 from .config import (
     APP_NAME,
     APP_VERSION,
@@ -315,6 +322,23 @@ class App(ctk.CTk):
         )
         self._send_choose_lbl.pack(anchor="w", padx=10, pady=(6, 2))
 
+        # Drop zone frame for drag-and-drop
+        drop_frame = ctk.CTkFrame(tab, fg_color="#2a2a3a", corner_radius=8)
+        drop_frame.pack(fill="x", padx=10, pady=2)
+        
+        self._drop_label = ctk.CTkLabel(
+            drop_frame,
+            text="📂 Drop file here or click Browse",
+            font=ctk.CTkFont(size=12),
+            text_color="gray",
+            height=60,
+        )
+        self._drop_label.pack(fill="x", padx=10, pady=5)
+        
+        # Register drag-and-drop if available
+        if _HAS_DND:
+            self._setup_drag_drop(drop_frame)
+
         file_frame = ctk.CTkFrame(tab, fg_color="transparent")
         file_frame.pack(fill="x", padx=10, pady=2)
 
@@ -497,11 +521,75 @@ class App(ctk.CTk):
     def _browse_file(self):
         path = filedialog.askopenfilename(title="Choose file")
         if path:
-            self.file_entry.configure(state="normal")
-            self.file_entry.delete(0, "end")
-            self.file_entry.insert(0, path)
-            self.file_entry.configure(state="readonly")
-            self._update_file_info(path)
+            self._set_file_path(path)
+
+    def _set_file_path(self, path: str):
+        """Set the file path in the entry (from browse or drag-drop)."""
+        # Clean up path (remove curly braces from Windows drag-drop)
+        path = path.strip('{}').strip('"').strip("'")
+        if not Path(path).is_file():
+            return
+        
+        self.file_entry.configure(state="normal")
+        self.file_entry.delete(0, "end")
+        self.file_entry.insert(0, path)
+        self.file_entry.configure(state="readonly")
+        self._update_file_info(path)
+        
+        # Update drop zone label
+        self._drop_label.configure(
+            text=f"✅ {Path(path).name}",
+            text_color="#2ecc71",
+        )
+    
+    def _setup_drag_drop(self, widget):
+        """Setup drag-and-drop for the widget."""
+        try:
+            # Get the underlying Tk widget
+            tk_widget = widget.winfo_toplevel()
+            
+            # Register drop target
+            widget.drop_target_register(DND_FILES)
+            widget.dnd_bind('<<Drop>>', self._on_file_drop)
+            widget.dnd_bind('<<DragEnter>>', self._on_drag_enter)
+            widget.dnd_bind('<<DragLeave>>', self._on_drag_leave)
+        except Exception as e:
+            log.debug(f"Could not setup drag-drop: {e}")
+    
+    def _on_file_drop(self, event):
+        """Handle file drop event."""
+        path = event.data
+        # Handle multiple files (take first one)
+        if '\n' in path:
+            path = path.split('\n')[0]
+        path = path.strip('{}').strip()
+        
+        if Path(path).is_file():
+            self._set_file_path(path)
+        return event.action
+    
+    def _on_drag_enter(self, event):
+        """Visual feedback when dragging over drop zone."""
+        self._drop_label.configure(
+            text="📥 Drop to select file",
+            text_color="#3498db",
+        )
+        return event.action
+    
+    def _on_drag_leave(self, event):
+        """Reset visual feedback when leaving drop zone."""
+        current = self.file_entry.get()
+        if current:
+            self._drop_label.configure(
+                text=f"✅ {Path(current).name}",
+                text_color="#2ecc71",
+            )
+        else:
+            self._drop_label.configure(
+                text="📂 Drop file here or click Browse",
+                text_color="gray",
+            )
+        return event.action
 
     def _update_file_info(self, path: str):
         """Show file size and 5GB warning after file selection."""
