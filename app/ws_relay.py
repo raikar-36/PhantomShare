@@ -114,6 +114,7 @@ from .exceptions import (
     IntegrityError,
     ProtocolError,
 )
+from . import history
 
 # ── Certificate Pinning ────────────────────────────────────────────
 
@@ -783,6 +784,7 @@ class VPSRelaySender:
         self._transfer_id: Optional[str] = None
         self._reconnect_token: Optional[str] = None
         self._chunk_size: int = VPS_CHUNK_SIZE  # May be updated by adaptive sizing
+        self._history_id: Optional[int] = None  # Transfer history tracking
 
     def cancel(self) -> None:
         self._cancelled = True
@@ -814,12 +816,22 @@ class VPSRelaySender:
             self._transfer_id = _make_transfer_id(
                 file_name, file_size, self._file_hash
             )
+            # Record transfer start in history
+            self._history_id = history.add_transfer(
+                filename=file_name,
+                size=file_size,
+                direction="sent",
+                status="in_progress",
+                session_code=self._code,
+            )
         except Exception as exc:
             self._log(f"❌ File read error: {exc}")
             return False
 
         for attempt in range(RECONNECT_MAX_RETRIES + 1):
             if self._cancelled:
+                if self._history_id:
+                    history.update_transfer_status(self._history_id, "cancelled")
                 return False
 
             if attempt > 0:
@@ -830,6 +842,8 @@ class VPSRelaySender:
                 self._log(f"🔄 Reconnecting in {delay:.0f}s (attempt {attempt}/{RECONNECT_MAX_RETRIES})...")
                 time.sleep(delay)
                 if self._cancelled:
+                    if self._history_id:
+                        history.update_transfer_status(self._history_id, "cancelled")
                     return False
 
             self._connection_lost.clear()
@@ -838,9 +852,13 @@ class VPSRelaySender:
             try:
                 result = self._send_attempt(is_reconnect=(attempt > 0))
                 if result is True:
+                    if self._history_id:
+                        history.update_transfer_status(self._history_id, "completed", self._file_hash)
                     return True
                 if result is False:
                     # Permanent failure (cancel, verification rejected, etc.)
+                    if self._history_id:
+                        history.update_transfer_status(self._history_id, "failed")
                     return False
                 # result is None → connection lost, retry
                 self._log("⚠️ Connection lost")
@@ -851,6 +869,8 @@ class VPSRelaySender:
                 self._close()
 
         self._log("❌ Reconnection attempts exhausted")
+        if self._history_id:
+            history.update_transfer_status(self._history_id, "failed")
         return False
 
     def _send_attempt(self, is_reconnect: bool = False) -> Optional[bool]:
@@ -1188,6 +1208,7 @@ class VPSRelayReceiver:
 
         self._reconnect_token: Optional[str] = None
         self._retryable = False  # set to True on connection-level errors
+        self._history_id: Optional[int] = None  # Transfer history tracking
 
     def cancel(self) -> None:
         self._cancelled = True
@@ -1211,6 +1232,8 @@ class VPSRelayReceiver:
 
         for attempt in range(RECONNECT_MAX_RETRIES + 1):
             if self._cancelled:
+                if self._history_id:
+                    history.update_transfer_status(self._history_id, "cancelled")
                 return None
 
             if attempt > 0:
@@ -1221,6 +1244,8 @@ class VPSRelayReceiver:
                 self._log(f"🔄 Reconnecting in {delay:.0f}s (attempt {attempt}/{RECONNECT_MAX_RETRIES})...")
                 time.sleep(delay)
                 if self._cancelled:
+                    if self._history_id:
+                        history.update_transfer_status(self._history_id, "cancelled")
                     return None
 
             self._retryable = False
@@ -1230,6 +1255,8 @@ class VPSRelayReceiver:
                 if result is not None:
                     return result  # success (Path)
                 if not self._retryable or self._cancelled:
+                    if self._history_id and self._cancelled:
+                        history.update_transfer_status(self._history_id, "cancelled")
                     return None   # permanent failure
                 # retryable → continue loop
                 self._log("⚠️ Connection lost")
@@ -1240,6 +1267,8 @@ class VPSRelayReceiver:
                 self._close()
 
         self._log("❌ Reconnection attempts exhausted")
+        if self._history_id:
+            history.update_transfer_status(self._history_id, "failed")
         return None
 
     def _receive_attempt(self, is_reconnect: bool = False) -> Optional[Path]:
@@ -1496,6 +1525,16 @@ class VPSRelayReceiver:
                             ack_msg["resume"] = True
                             ack_msg["received_chunks"] = sorted(received_seqs)
 
+                        # Record transfer in history
+                        if not self._history_id:
+                            self._history_id = history.add_transfer(
+                                filename=file_name,
+                                size=file_size,
+                                direction="received",
+                                status="in_progress",
+                                session_code=self._code,
+                            )
+
                         self._send_ctl(json.dumps(ack_msg).encode())
                         t0 = time.monotonic()
                         last_prog = t0
@@ -1554,11 +1593,15 @@ class VPSRelayReceiver:
                                 elapsed = time.monotonic() - t0
                                 avg = file_size / elapsed if elapsed > 0 else 0
                                 self._log(f"✅ Saved: {save_path.name} ({avg / (1024*1024):.1f} MB/s)")
+                                if self._history_id:
+                                    history.update_transfer_status(self._history_id, "completed", file_hash)
                                 return save_path
                             else:
                                 self._log("❌ Hash mismatch!")
                                 _delete_manifest(self._save_dir, file_name)
                                 temp_path.unlink(missing_ok=True)
+                                if self._history_id:
+                                    history.update_transfer_status(self._history_id, "failed")
                                 return None
 
                 # ── Data frame ─────────────────────────────────────

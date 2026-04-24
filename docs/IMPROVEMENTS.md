@@ -293,21 +293,17 @@ Can be done incrementally in future releases.
 
 ---
 
-### 4. Transfer History
+### 4. Transfer History ✅ COMPLETED
 
-**Current:** No history.
+**Status:** Implemented with SQLite storage
 
-**Recommendation:** Keep local history of recent transfers.
-
-```python
-# Store in SQLite:
-# - Timestamp
-# - Filename
-# - Size
-# - Direction (sent/received)
-# - Status
-# - SHA-256 (for verification)
-```
+**Implementation:**
+- Created `app/history.py` module with SQLite backend
+- Stores: timestamp, filename, size, direction, status, SHA-256, session code
+- Auto-creates `~/.phantomshare/history.db`
+- Records transfers on start, updates status on completion/failure/cancel
+- Keeps last 100 entries (auto-cleanup)
+- Provides `get_recent_transfers()` and `get_stats()` functions
 
 ---
 
@@ -415,11 +411,11 @@ Can be done incrementally in future releases.
 - ⏸️ Type Hints (extensive work)
 - ✅ Error Handling (custom exceptions)
 
-**Features (2):**
+**Features (3):**
 - ⏸️ Multi-File Transfer (protocol changes)
 - ⏸️ Transfer Queuing
 - ✅ Drag-and-Drop
-- ⏸️ Transfer History
+- ✅ Transfer History
 - ✅ QR Code Sharing
 - ⏸️ macOS Build
 - ⏸️ Theme Toggle
