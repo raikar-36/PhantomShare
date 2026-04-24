@@ -223,6 +223,14 @@ class App(ctk.CTk):
         )
         self._tb_help_btn.pack(side="left", padx=2, pady=4)
 
+        # Theme toggle button (right side)
+        self._current_theme = "dark"
+        self._tb_theme_btn = ctk.CTkButton(
+            toolbar, text="🌙", width=36,
+            command=self._toggle_theme, **_tb_kw,
+        )
+        self._tb_theme_btn.pack(side="right", padx=(2, 6), pady=4)
+
         # Tab view
         self.tabs = ctk.CTkTabview(self, width=self.WIDTH - 40)
         self.tabs.pack(fill="both", expand=True, padx=20, pady=(6, 0))
@@ -986,6 +994,17 @@ class App(ctk.CTk):
         threading.Thread(target=_run_checks, daemon=True).start()
 
     # ── Help popup ───────────────────────────────────────────────────
+
+    def _toggle_theme(self):
+        """Toggle between dark and light mode."""
+        if self._current_theme == "dark":
+            self._current_theme = "light"
+            ctk.set_appearance_mode("light")
+            self._tb_theme_btn.configure(text="☀️")
+        else:
+            self._current_theme = "dark"
+            ctk.set_appearance_mode("dark")
+            self._tb_theme_btn.configure(text="🌙")
 
     def _show_help(self):
         """Open a modal help window with step-by-step instructions."""

@@ -326,9 +326,14 @@ Can be done incrementally in future releases.
 
 ---
 
-### 7. Dark/Light Theme Toggle ⏸️ DEFERRED
+### 7. Dark/Light Theme Toggle ✅ COMPLETED
 
-**Status:** Deferred — UI enhancement, not critical for functionality.
+**Status:** Implemented
+
+**Implementation:**
+- Added theme toggle button (🌙/☀️) in toolbar
+- Toggles between dark and light appearance modes
+- Uses CustomTkinter's built-in theme support
 
 ---
 
@@ -411,14 +416,14 @@ Can be done incrementally in future releases.
 - ⏸️ Type Hints (extensive work)
 - ✅ Error Handling (custom exceptions)
 
-**Features (3):**
+**Features (4):**
 - ⏸️ Multi-File Transfer (protocol changes)
 - ⏸️ Transfer Queuing
 - ✅ Drag-and-Drop
 - ✅ Transfer History
 - ✅ QR Code Sharing
 - ⏸️ macOS Build
-- ⏸️ Theme Toggle
+- ✅ Theme Toggle
 - ⏸️ Bandwidth Limiting
 
 **Testing/Docs/Infrastructure:**
