@@ -402,7 +402,7 @@ Can be done incrementally in future releases.
 
 ## Summary
 
-**Completed Improvements: 9**
+**Completed Improvements: 14**
 
 **Security (3):**
 - ✅ Certificate Pinning
@@ -423,7 +423,7 @@ Can be done incrementally in future releases.
 - ⏸️ Type Hints (extensive work)
 - ✅ Error Handling (custom exceptions)
 
-**Features (4):**
+**Features (5):**
 - ⏸️ Multi-File Transfer (protocol changes)
 - ⏸️ Transfer Queuing
 - ✅ Drag-and-Drop
@@ -433,7 +433,7 @@ Can be done incrementally in future releases.
 - ✅ Theme Toggle
 - ⏸️ Bandwidth Limiting
 
-**Testing/Docs/Infrastructure:**
+**Testing (1):**
 - ✅ Unit Tests (pytest)
 - ⏸️ Integration Tests, Code Coverage, Security Scanning, CI Matrix
 - ⏸️ Documentation improvements
