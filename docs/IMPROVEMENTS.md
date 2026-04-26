@@ -345,9 +345,16 @@ Can be done incrementally in future releases.
 
 ## Testing & CI/CD
 
-### 1. Client-Side Unit Tests (High Priority) ⏸️ DEFERRED
+### 1. Client-Side Unit Tests (High Priority) ✅ COMPLETED
 
-**Status:** Deferred — comprehensive testing framework setup needed.
+**Status:** Implemented with pytest
+
+**Implementation:**
+- Created `tests/` directory with test modules
+- `test_crypto_utils.py`: 25 tests covering SecureBytes, signaling crypto, CryptoSession
+- `test_history.py`: 10 tests covering history storage, cleanup, stats
+- All 35 tests passing
+- Added `requirements-dev.txt` with pytest dependency
 
 ---
 
@@ -427,7 +434,9 @@ Can be done incrementally in future releases.
 - ⏸️ Bandwidth Limiting
 
 **Testing/Docs/Infrastructure:**
-- All deferred (infrastructure enhancements)
+- ✅ Unit Tests (pytest)
+- ⏸️ Integration Tests, Code Coverage, Security Scanning, CI Matrix
+- ⏸️ Documentation improvements
 
 ---
 
