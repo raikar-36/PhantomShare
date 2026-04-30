@@ -259,17 +259,17 @@ Can be done incrementally in future releases.
 
 ## Feature Enhancements
 
-### 1. Multi-File Transfer (High Priority)
+### 1. Multi-File Transfer (High Priority) ✅ COMPLETED
 
-**Current:** Single file per session (workaround: use archives).
+**Status:** Implemented with client-side bundling
 
-**Recommendation:** Native support for multiple files/folders.
-
-```python
-# Protocol extension:
-# relay_meta now includes: files: [{name, size, path}, ...]
-# Chunks include file_index in header
-```
+**Implementation:**
+- Created `app/bundler.py` with ZIP-based bundling
+- Added "Multi" and "Folder" buttons for selecting multiple items
+- Drag-and-drop now supports multiple files/folders
+- Auto-creates `.phantombundle.zip` archive for transfer
+- Receiver auto-extracts bundles to named folder
+- No relay server changes required
 
 ---
 
@@ -288,6 +288,7 @@ Can be done incrementally in future releases.
 **Implementation:**
 - Added drop zone with visual feedback in sender tab
 - Supports dragging files directly onto the application
+- Now supports multiple files (auto-bundles them)
 - Visual states: idle, drag-over, file-selected
 - Falls back gracefully if tkinterdnd2 not available
 
@@ -423,8 +424,10 @@ Can be done incrementally in future releases.
 - ⏸️ Type Hints (extensive work)
 - ✅ Error Handling (custom exceptions)
 
-**Features (5):**
-- ⏸️ Multi-File Transfer (protocol changes)
+**Features (6):**
+- ✅ Multi-File Transfer (bundling)
+- ⏸️ Transfer Queuing
+- ✅ Multi-File Transfer (bundling)
 - ⏸️ Transfer Queuing
 - ✅ Drag-and-Drop
 - ✅ Transfer History

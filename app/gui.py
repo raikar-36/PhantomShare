@@ -359,11 +359,29 @@ class App(ctk.CTk):
 
         self._send_browse_btn = ctk.CTkButton(
             file_frame,
-            text="📁 Browse",
-            width=100,
+            text="📁 File",
+            width=70,
             command=self._browse_file,
         )
-        self._send_browse_btn.pack(side="right")
+        self._send_browse_btn.pack(side="right", padx=(0, 2))
+        
+        self._send_browse_multi_btn = ctk.CTkButton(
+            file_frame,
+            text="📚 Multi",
+            width=70,
+            command=self._browse_files_multi,
+            fg_color="#2980b9",
+        )
+        self._send_browse_multi_btn.pack(side="right", padx=(0, 2))
+        
+        self._send_browse_folder_btn = ctk.CTkButton(
+            file_frame,
+            text="📂 Folder",
+            width=70,
+            command=self._browse_folder,
+            fg_color="#27ae60",
+        )
+        self._send_browse_folder_btn.pack(side="right", padx=(0, 2))
 
         # File info label (size + warning)
         self.file_info_label = ctk.CTkLabel(
@@ -530,6 +548,34 @@ class App(ctk.CTk):
         path = filedialog.askopenfilename(title="Choose file")
         if path:
             self._set_file_path(path)
+    
+    def _browse_files_multi(self):
+        """Browse for multiple files and create a bundle."""
+        paths = filedialog.askopenfilenames(title="Choose files to bundle")
+        if paths and len(paths) > 0:
+            self._create_and_set_bundle(list(paths))
+    
+    def _browse_folder(self):
+        """Browse for a folder and create a bundle."""
+        path = filedialog.askdirectory(title="Choose folder to bundle")
+        if path:
+            self._create_and_set_bundle([path])
+    
+    def _create_and_set_bundle(self, paths: list):
+        """Create a bundle from paths and set it as the file to send."""
+        from .bundler import create_bundle
+        import tempfile
+        
+        try:
+            self._log_status("📦 Creating bundle...")
+            bundle_path = create_bundle(
+                [Path(p) for p in paths],
+                output_dir=Path(tempfile.gettempdir()),
+            )
+            self._set_file_path(str(bundle_path))
+            self._log_status(f"📦 Bundle created: {len(paths)} items")
+        except Exception as e:
+            self._log_status(f"❌ Bundle error: {e}")
 
     def _set_file_path(self, path: str):
         """Set the file path in the entry (from browse or drag-drop)."""
@@ -565,15 +611,33 @@ class App(ctk.CTk):
             log.debug(f"Could not setup drag-drop: {e}")
     
     def _on_file_drop(self, event):
-        """Handle file drop event."""
-        path = event.data
-        # Handle multiple files (take first one)
-        if '\n' in path:
-            path = path.split('\n')[0]
-        path = path.strip('{}').strip()
+        """Handle file drop event - supports multiple files."""
+        data = event.data
+        # Parse dropped paths (can be space-separated with {} around paths with spaces)
+        paths = []
+        if '{' in data:
+            # Windows format with braces
+            import re
+            paths = re.findall(r'\{([^}]+)\}', data)
+            # Also get non-braced items
+            remaining = re.sub(r'\{[^}]+\}', '', data).strip()
+            if remaining:
+                paths.extend(remaining.split())
+        else:
+            paths = data.split('\n') if '\n' in data else data.split()
         
-        if Path(path).is_file():
-            self._set_file_path(path)
+        paths = [p.strip() for p in paths if p.strip()]
+        
+        if len(paths) == 1:
+            path = paths[0]
+            if Path(path).is_file():
+                self._set_file_path(path)
+            elif Path(path).is_dir():
+                self._create_and_set_bundle([path])
+        elif len(paths) > 1:
+            # Multiple files/folders - create bundle
+            self._create_and_set_bundle(paths)
+        
         return event.action
     
     def _on_drag_enter(self, event):
@@ -1451,6 +1515,21 @@ class App(ctk.CTk):
                     file_size = Path(result).stat().st_size
                 except Exception:
                     pass
+                
+                # Auto-extract bundles
+                from .bundler import is_bundle, extract_bundle, get_bundle_info
+                if is_bundle(result):
+                    try:
+                        info = get_bundle_info(result)
+                        self._log(f"📦 Bundle detected: {info['file_count']} files")
+                        extract_dir = Path(save_dir) / result.stem.replace('.phantombundle', '')
+                        extracted = extract_bundle(result, extract_dir)
+                        self._log(f"📦 Extracted {len(extracted)} files to {extract_dir.name}/")
+                        # Remove the bundle file after extraction
+                        result.unlink()
+                    except Exception as e:
+                        self._log(f"⚠️ Bundle extraction failed: {e}")
+                
                 self._set_state(self.STATE_DONE)
                 self._log(f"🎉 File saved: {result}")
             elif self._cancel_flag:
