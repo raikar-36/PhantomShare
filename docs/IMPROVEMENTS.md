@@ -338,9 +338,17 @@ Can be done incrementally in future releases.
 
 ---
 
-### 8. Bandwidth Limiting ⏸️ DEFERRED
+### 8. Bandwidth Limiting ✅ COMPLETED
 
-**Status:** Deferred — Can be added in future release based on user demand.
+**Status:** Implemented with token bucket rate limiter
+
+**Implementation:**
+- Added `RateLimiter` class using token bucket algorithm
+- Configurable via `PHANTOMSHARE_BANDWIDTH_LIMIT` env var
+- Or `bandwidth_limit` in config file (~/.phantomshare/config.json)
+- Presets: Unlimited, 10 Mbps, 50 Mbps, 100 Mbps, 1 Gbps
+- Non-blocking implementation that doesn't stall transfers
+- `VPSRelaySender.set_bandwidth_limit()` for dynamic control
 
 ---
 
@@ -434,7 +442,7 @@ Can be done incrementally in future releases.
 - ✅ QR Code Sharing
 - ⏸️ macOS Build
 - ✅ Theme Toggle
-- ⏸️ Bandwidth Limiting
+- ✅ Bandwidth Limiting
 
 **Testing (1):**
 - ✅ Unit Tests (pytest)

@@ -99,6 +99,7 @@ from .config import (
     CHUNK_SIZE_MIN,
     CHUNK_SIZE_MAX,
     CHUNK_SIZE_ADAPTIVE,
+    BANDWIDTH_LIMIT,
 )
 from .crypto_utils import (
     CryptoSession,
@@ -428,6 +429,55 @@ class ChunkPipeline:
         self._cancelled.set()
         if self._reader_thread and self._reader_thread.is_alive():
             self._reader_thread.join(timeout=1.0)
+
+
+class RateLimiter:
+    """Token bucket rate limiter for bandwidth control."""
+    
+    def __init__(self, bytes_per_second: int = 0):
+        """
+        Initialize rate limiter.
+        
+        Args:
+            bytes_per_second: Maximum bytes per second (0 = unlimited)
+        """
+        self._limit = bytes_per_second
+        self._tokens = bytes_per_second  # Start with full bucket
+        self._last_update = time.monotonic()
+        self._lock = threading.Lock()
+    
+    def set_limit(self, bytes_per_second: int):
+        """Update the rate limit."""
+        with self._lock:
+            self._limit = bytes_per_second
+            self._tokens = bytes_per_second
+    
+    def consume(self, bytes_count: int) -> None:
+        """
+        Consume bytes, blocking if necessary to respect rate limit.
+        
+        Args:
+            bytes_count: Number of bytes to consume
+        """
+        if self._limit <= 0:
+            return  # No limit
+        
+        with self._lock:
+            now = time.monotonic()
+            elapsed = now - self._last_update
+            self._last_update = now
+            
+            # Add tokens based on elapsed time
+            self._tokens = min(self._limit, self._tokens + elapsed * self._limit)
+            
+            # If we don't have enough tokens, calculate wait time
+            if bytes_count > self._tokens:
+                wait_time = (bytes_count - self._tokens) / self._limit
+                if wait_time > 0:
+                    time.sleep(wait_time)
+                self._tokens = 0
+            else:
+                self._tokens -= bytes_count
 
 
 def _sha256_file(path: Path) -> str:
@@ -785,6 +835,7 @@ class VPSRelaySender:
         self._reconnect_token: Optional[str] = None
         self._chunk_size: int = VPS_CHUNK_SIZE  # May be updated by adaptive sizing
         self._history_id: Optional[int] = None  # Transfer history tracking
+        self._rate_limiter = RateLimiter(BANDWIDTH_LIMIT)  # Bandwidth control
 
     def cancel(self) -> None:
         self._cancelled = True
@@ -1140,10 +1191,16 @@ class VPSRelaySender:
             payload = _compress(chunk)
             payload = self._crypto.encrypt(payload)
             frame   = bytes([_DAT]) + struct.pack("!I", seq) + payload
+            # Apply bandwidth limiting
+            self._rate_limiter.consume(len(frame))
             self._ws.send_binary(frame)
         except Exception as exc:
             log.debug("VPS send dat error: %s", exc)
             self._connection_lost.set()
+    
+    def set_bandwidth_limit(self, bytes_per_second: int) -> None:
+        """Set bandwidth limit dynamically. 0 = unlimited."""
+        self._rate_limiter.set_limit(bytes_per_second)
 
     def _recv_worker(self) -> None:
         """Receive control frames from the receiver (runs in background)."""
