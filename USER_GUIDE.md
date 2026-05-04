@@ -269,10 +269,9 @@ The application performs 5 checks:
 | Limitation | Details | Recommendation |
 |-----------|--------|-------------|
 | **Maximum 5 GB per session** | This is a server limit. After 5 GB the connection will be terminated | For larger files: split with an archiver (7-Zip, WinRAR) into parts up to 4 GB |
-| **One file per session** | Protocol transfers one file | For multiple files: pack into ZIP/RAR archive |
 | **Internet required** | On both devices simultaneously | Mobile internet also works |
 | **Session code is one-time** | After use — invalid | For new transfer — new session |
-| **Windows and Linux** | macOS not officially supported | macOS: run from source code (Python 3.11+) |
+| **Windows and Linux** | macOS: build from source | macOS: run `python build.py` |
 
 ### About the 5 GB Limit
 
@@ -505,7 +504,7 @@ An attacker would only get access to encrypted data. Without the encryption keys
 
 ### Can I transfer multiple files?
 
-One file per session. For multiple files — pack them into one archive (ZIP, RAR, 7z) and transfer it.
+Yes! Use the "Multi" or "Folder" buttons in the app to select multiple files or entire folders. They will be bundled automatically.
 
 ### Can I transfer a file larger than 5 GB?
 

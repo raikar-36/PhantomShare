@@ -4,4 +4,5 @@ certifi>=2024.0.0
 websocket-client>=1.7.0
 pyinstaller==6.19.0
 qrcode[pil]
-tkinterdnd2
+tkinterdnd2>=0.4.2
+Pillow>=10.0.0

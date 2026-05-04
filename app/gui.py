@@ -59,8 +59,7 @@ def _startup_tips() -> list[str]:
     return [
         "🔒  Your files are protected by AES-256-GCM encryption. The server never sees your data.",
         "🔄  If the connection drops, the transfer will automatically resume from where it stopped.",
-        f"⭐  Like PhantomShare? Star us on GitHub: {GITHUB_URL}",
-        "🚀  Tip: for multiple files, pack them into a single archive (ZIP/RAR).",
+        "🚀  Tip: Use 'Multi' or 'Folder' buttons to send multiple files at once.",
         "🛡️  Always check the verification code — it protects against man-in-the-middle (MITM) attacks.",
     ]
 
@@ -230,6 +229,13 @@ class App(ctk.CTk):
             command=self._toggle_theme, **_tb_kw,
         )
         self._tb_theme_btn.pack(side="right", padx=(2, 6), pady=4)
+        
+        # History button
+        self._tb_history_btn = ctk.CTkButton(
+            toolbar, text="📜 History", width=90,
+            command=self._show_history, **_tb_kw,
+        )
+        self._tb_history_btn.pack(side="right", padx=2, pady=4)
 
         # Tab view
         self.tabs = ctk.CTkTabview(self, width=self.WIDTH - 40)
@@ -382,6 +388,16 @@ class App(ctk.CTk):
             fg_color="#27ae60",
         )
         self._send_browse_folder_btn.pack(side="right", padx=(0, 2))
+        
+        self._send_clear_btn = ctk.CTkButton(
+            file_frame,
+            text="✕",
+            width=30,
+            command=self._clear_file_selection,
+            fg_color="#7f8c8d",
+            hover_color="#95a5a6",
+        )
+        self._send_clear_btn.pack(side="right", padx=(0, 2))
 
         # File info label (size + warning)
         self.file_info_label = ctk.CTkLabel(
@@ -561,21 +577,33 @@ class App(ctk.CTk):
         if path:
             self._create_and_set_bundle([path])
     
+    def _clear_file_selection(self):
+        """Clear the current file selection."""
+        self.file_entry.configure(state="normal")
+        self.file_entry.delete(0, "end")
+        self.file_entry.configure(state="readonly")
+        self.file_info_label.configure(text="")
+        self.size_warning_label.configure(text="")
+        self._drop_label.configure(
+            text="📂 Drop file here or click Browse",
+            text_color="gray",
+        )
+    
     def _create_and_set_bundle(self, paths: list):
         """Create a bundle from paths and set it as the file to send."""
         from .bundler import create_bundle
         import tempfile
         
         try:
-            self._log_status("📦 Creating bundle...")
+            self._log("📦 Creating bundle...")
             bundle_path = create_bundle(
                 [Path(p) for p in paths],
                 output_dir=Path(tempfile.gettempdir()),
             )
             self._set_file_path(str(bundle_path))
-            self._log_status(f"📦 Bundle created: {len(paths)} items")
+            self._log(f"📦 Bundle created: {len(paths)} items")
         except Exception as e:
-            self._log_status(f"❌ Bundle error: {e}")
+            self._log(f"❌ Bundle error: {e}")
 
     def _set_file_path(self, path: str):
         """Set the file path in the entry (from browse or drag-drop)."""
@@ -1070,6 +1098,107 @@ class App(ctk.CTk):
             ctk.set_appearance_mode("dark")
             self._tb_theme_btn.configure(text="🌙")
 
+    def _show_history(self):
+        """Open a window showing transfer history."""
+        from . import history
+        
+        # Prevent multiple windows
+        if hasattr(self, "_history_win") and self._history_win is not None:
+            try:
+                self._history_win.focus()
+                return
+            except Exception:
+                pass
+        
+        win = ctk.CTkToplevel(self)
+        win.title("Transfer History")
+        win.geometry("600x450")
+        win.resizable(True, True)
+        win.transient(self)
+        self._history_win = win
+        
+        def _on_close():
+            self._history_win = None
+            win.destroy()
+        
+        win.protocol("WM_DELETE_WINDOW", _on_close)
+        
+        # Header
+        header = ctk.CTkFrame(win, fg_color="#1a5276", corner_radius=0)
+        header.pack(fill="x")
+        ctk.CTkLabel(
+            header,
+            text="📜 Transfer History",
+            font=ctk.CTkFont(size=18, weight="bold"),
+            text_color="white",
+        ).pack(padx=20, pady=14)
+        
+        # Stats
+        stats = history.get_stats()
+        stats_frame = ctk.CTkFrame(win)
+        stats_frame.pack(fill="x", padx=12, pady=8)
+        
+        ctk.CTkLabel(
+            stats_frame,
+            text=f"Total: {stats['total']}  |  Sent: {stats['sent']}  |  Received: {stats['received']}  |  Data: {_human_size(stats['total_bytes'])}",
+            font=ctk.CTkFont(size=12),
+        ).pack(pady=8)
+        
+        # Scrollable history list
+        scroll = ctk.CTkScrollableFrame(win)
+        scroll.pack(fill="both", expand=True, padx=12, pady=(0, 8))
+        
+        transfers = history.get_recent_transfers(limit=50)
+        
+        if not transfers:
+            ctk.CTkLabel(
+                scroll,
+                text="No transfers yet.",
+                font=ctk.CTkFont(size=14),
+                text_color="gray",
+            ).pack(pady=40)
+        else:
+            for t in transfers:
+                direction_icon = "📤" if t['direction'] == 'sent' else "📥"
+                status_icon = {"completed": "✅", "failed": "❌", "cancelled": "⏹", "in_progress": "🔄"}.get(t['status'], "⚪")
+                
+                row = ctk.CTkFrame(scroll, fg_color="#2a2a3a")
+                row.pack(fill="x", pady=2)
+                
+                # Timestamp
+                ts = t['timestamp'][:16].replace('T', ' ')  # Format: YYYY-MM-DD HH:MM
+                
+                ctk.CTkLabel(
+                    row,
+                    text=f"{direction_icon} {status_icon}  {t['filename']}",
+                    font=ctk.CTkFont(size=13),
+                    anchor="w",
+                ).pack(side="left", padx=10, pady=6)
+                
+                ctk.CTkLabel(
+                    row,
+                    text=f"{_human_size(t['size'])}  •  {ts}",
+                    font=ctk.CTkFont(size=11),
+                    text_color="gray",
+                ).pack(side="right", padx=10, pady=6)
+        
+        # Clear history button
+        btn_frame = ctk.CTkFrame(win, fg_color="transparent")
+        btn_frame.pack(fill="x", padx=12, pady=(0, 12))
+        
+        def _clear_history():
+            history.clear_history()
+            _on_close()
+            self._show_history()  # Reopen to refresh
+        
+        ctk.CTkButton(
+            btn_frame,
+            text="🗑️ Clear History",
+            fg_color="#c0392b",
+            hover_color="#e74c3c",
+            command=_clear_history,
+        ).pack(side="right")
+
     def _show_help(self):
         """Open a modal help window with step-by-step instructions."""
         # Prevent multiple help windows
@@ -1111,11 +1240,11 @@ class App(ctk.CTk):
         # Section color scheme: (title, body, card_color, title_color, accent_bar)
         max_gb = VPS_MAX_FILE_SIZE // (1024**3)
         help_sections = [
-            ("📤 Sending a file", "1. Click 'Browse' and select a file.\n2. Click 'Send' — a session code will appear.\n3. Share this code with the recipient.\n4. Wait for them to connect and verify the code.", "#1a3a2a", "#2ecc71"),
-            ("📥 Receiving a file", "1. Enter the session code from the sender.\n2. Choose where to save the file.\n3. Click 'Receive' and wait for the sender.\n4. Verify the code matches and confirm.", "#1a2a3a", "#3498db"),
+            ("📤 Sending files", "1. Click 'File' for single file, 'Multi' for multiple files, or 'Folder' for a folder.\n2. Click 'Send' — a session code will appear.\n3. Share this code with the recipient.\n4. Wait for them to connect and verify the code.", "#1a3a2a", "#2ecc71"),
+            ("📥 Receiving files", "1. Enter the session code from the sender.\n2. Choose where to save the file.\n3. Click 'Receive' and wait for the sender.\n4. Verify the code matches and confirm.", "#1a2a3a", "#3498db"),
             ("🔐 Verification", "Both parties must see the same verification code.\nIf codes differ, the connection may be intercepted (MITM attack).\nAlways cancel if codes don't match!", "#2a2a1a", "#f1c40f"),
             ("🔒 Security", "Files are encrypted with AES-256-GCM.\nThe server never sees your data — only encrypted chunks.\nKeys are exchanged using ECDH (Elliptic Curve Diffie-Hellman).", "#1a1a2a", "#9b59b6"),
-            (f"📏 Limits", f"Maximum file size: {max_gb} GB\nLarger files may be interrupted by the server.\nFor multiple files, use an archive (ZIP/RAR).", "#2a1a1a", "#e74c3c"),
+            (f"📏 Limits", f"Maximum file size: {max_gb} GB\nLarger files may be interrupted by the server.", "#2a1a1a", "#e74c3c"),
             ("🔄 Reconnection", "If the connection drops, PhantomShare will try to resume.\nPartial transfers are saved and continued automatically.", "#1a2a3a", "#e67e22"),
         ]
 

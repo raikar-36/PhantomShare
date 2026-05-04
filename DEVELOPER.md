@@ -1053,9 +1053,8 @@ Secrets configured in repository settings:
 
 | Limitation | Reason | Workaround |
 |-----------|--------|------------|
-| **5 GB per session** | Server-enforced to prevent abuse on free VPS | Split large files; use archives |
-| **One file per session** | Protocol design for simplicity | Use ZIP/TAR for multiple files |
-| **Windows & Linux** | macOS not officially supported | Run from source on macOS |
+| **5 GB per session** | Server-enforced to prevent abuse on free VPS | Split large files |
+| **Windows, Linux, macOS** | macOS builds via `python build.py` | Tested on all platforms |
 | **Single relay server** | Architecture choice | Can deploy additional relays |
 | **No offline mode** | Relay-dependent architecture | Both users must be online |
 

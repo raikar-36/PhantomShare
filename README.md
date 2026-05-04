@@ -20,15 +20,20 @@ PhantomShare is a desktop application with a graphical interface for one-time se
 - **Built-in Diagnostics** — connectivity and server health checks
 - **Cross-platform** — Windows (.exe) and Linux binaries; no installation needed
 - **5 GB session limit** — per-session data transfer cap
+- **Multi-file/Folder support** — bundle multiple files or entire folders
+- **Drag & Drop** — drag files directly onto the app
+- **Transfer History** — view past transfers
+- **QR Code sharing** — scan session code with another device
+- **Dark/Light themes** — toggle theme preference
 
 ## How to Use
 
 ### Sender
 
 1. Launch `PhantomShare.exe`
-2. Select a file
-3. Click "Send" — a session code will be generated (e.g. `a7f3-bc21`)
-4. Share the session code with the receiver
+2. Select a file (or use Multi/Folder buttons for multiple items)
+3. Click "Send" — a session code will be generated (e.g. `a7f3x-bc21y`)
+4. Share the session code with the receiver (QR code available)
 5. Compare the verification code
 6. Wait for the transfer to complete
 
@@ -114,9 +119,12 @@ Result: `dist/PhantomShare.exe` (Windows) or `dist/PhantomShare` (Linux)
 ```
 fileshare/
 ├── app/
+│   ├── bundler.py         # Multi-file bundling (ZIP)
 │   ├── config.py          # Configuration (VPS URL, limits, version, links)
 │   ├── crypto_utils.py    # X25519, AES-256-GCM, HKDF, signaling crypto
+│   ├── exceptions.py      # Custom exception hierarchy
 │   ├── gui.py             # CustomTkinter GUI + transfer orchestration
+│   ├── history.py         # SQLite transfer history
 │   ├── ws_relay.py        # VPS WebSocket relay sender/receiver
 │   └── telemetry.py       # Crash reports + anonymous analytics (opt-in)
 ├── server/
@@ -128,11 +136,13 @@ fileshare/
 │   ├── test_relay.py      # Server test suite (16+ tests)
 │   ├── DEPLOY.md          # Deployment instructions (Oracle Cloud)
 │   └── www/               # Landing page + admin dashboard
+├── tests/                 # Test suite
 ├── main.py                # Entry point
-├── build.py               # PyInstaller build script (Win + Linux)
+├── build.py               # PyInstaller build script (Win + Linux + macOS)
 ├── requirements.txt       # Python dependencies
 ├── PhantomShare.spec       # PyInstaller spec (Windows)
 ├── PhantomShare-linux.spec # PyInstaller spec (Linux)
+├── PhantomShare-macos.spec # PyInstaller spec (macOS)
 ├── version_info.txt       # .exe metadata (version, publisher)
 └── LICENSE                # MIT License
 ```
@@ -162,10 +172,9 @@ fileshare/
 ### Limitations
 
 - Maximum **5 GB per session** (server-enforced limit)
-- One file per session (use archives for multiple files)
 - Both devices must have internet access
 - Session codes are single-use
-- macOS is not officially supported (run from source)
+- macOS: run from source or build with `python build.py`
 
 ## Logs
 

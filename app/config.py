@@ -92,18 +92,6 @@ RECONNECT_MAX_RETRIES = _get_config("reconnect_retries", 5)
 RECONNECT_BASE_DELAY  = _get_config("reconnect_delay", 5)  # seconds
 RECONNECT_MAX_DELAY   = 60                # seconds cap
 
-# ── Bandwidth Limiting ─────────────────────────────────────────────
-# Set to 0 for unlimited, or bytes per second
-BANDWIDTH_LIMIT = _get_config("bandwidth_limit", 0)  # 0 = unlimited
-# Common presets (for UI):
-BANDWIDTH_PRESETS = {
-    "Unlimited": 0,
-    "10 Mbps": 10 * 1024 * 1024 // 8,    # ~1.25 MB/s
-    "50 Mbps": 50 * 1024 * 1024 // 8,    # ~6.25 MB/s  
-    "100 Mbps": 100 * 1024 * 1024 // 8,  # ~12.5 MB/s
-    "1 Gbps": 1024 * 1024 * 1024 // 8,   # ~125 MB/s
-}
-
 # ── App ────────────────────────────────────────────────────────────
 APP_NAME = "PhantomShare"
 APP_VERSION = "1.0.0"
