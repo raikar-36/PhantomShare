@@ -72,6 +72,7 @@ CHUNK_SIZE_ADAPTIVE = _get_config("chunk_size_adaptive", True)
 #   openssl s_client -connect host:443 | openssl x509 -outform DER | sha256sum
 VPS_CERT_FINGERPRINTS = [
     "7b0688cfaa5ff53f53940f30b706d26ce4decdc0cac96f96baf09209f132caf3",
+    "2bc91838b0ec99257faaf2e2ea7c4ad3cde3066b2205bbc82b299ff512d05a3c",
 ]
 CERT_PINNING_ENABLED = _get_config("cert_pinning", True)
 
