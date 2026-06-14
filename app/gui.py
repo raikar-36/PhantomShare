@@ -46,6 +46,7 @@ from .config import (
 )
 from .ws_relay import VPSRelaySender, VPSRelayReceiver
 from .telemetry import report_crash, report_session
+from .crypto_utils import get_contact_id, encrypt_for_contact, decrypt_from_contact
 
 log = logging.getLogger(__name__)
 
@@ -482,12 +483,41 @@ class App(ctk.CTk):
         )
         self.send_btn.pack(fill="x", padx=10, pady=(8, 6))
 
+        # WhatsApp secure transfer
+        wa_frame = ctk.CTkFrame(tab, fg_color="transparent")
+        wa_frame.pack(fill="x", padx=10, pady=(2, 6))
+
+        self.contact_id_entry = ctk.CTkEntry(
+            wa_frame,
+            placeholder_text="Receiver's Contact ID (Optional: Auto-encrypt session key)",
+        )
+        self.contact_id_entry.pack(fill="x", expand=True)
+
     # ── Receive tab ────────────────────────────────────────────────
 
     def _build_recv_tab(self, tab):
+        # Contact ID display
+        contact_frame = ctk.CTkFrame(tab)
+        contact_frame.pack(fill="x", padx=10, pady=(6, 2))
+        
+        self.gen_contact_btn = ctk.CTkButton(
+            contact_frame,
+            text="👤 Generate Contact Details",
+            width=180,
+            command=self._generate_contact_id,
+        )
+        self.gen_contact_btn.pack(side="left", padx=10, pady=8)
+        
+        self.my_contact_entry = ctk.CTkEntry(
+            contact_frame,
+            placeholder_text="Click generate to show Contact ID",
+            state="readonly",
+        )
+        self.my_contact_entry.pack(side="left", fill="x", expand=True, padx=(0, 10), pady=8)
+
         self._recv_enter_lbl = ctk.CTkLabel(
             tab,
-            text="Enter the session code from the sender:",
+            text="Enter the session code or JSON cipher text:",
             font=ctk.CTkFont(size=13),
         )
         self._recv_enter_lbl.pack(anchor="w", padx=10, pady=(6, 2))
@@ -729,6 +759,25 @@ class App(ctk.CTk):
             old_text = self.copy_code_btn.cget("text")
             self.copy_code_btn.configure(text="✓")
             self.after(1500, lambda: self.copy_code_btn.configure(text=old_text))
+
+    def _generate_contact_id(self):
+        """Generate and display the user's permanent Contact ID, and copy to clipboard."""
+        try:
+            contact_id = get_contact_id()
+            self.my_contact_entry.configure(state="normal")
+            self.my_contact_entry.delete(0, "end")
+            self.my_contact_entry.insert(0, contact_id)
+            self.my_contact_entry.configure(state="readonly")
+            
+            self.clipboard_clear()
+            self.clipboard_append(contact_id)
+            self._log("👤 Contact Details generated and copied to clipboard.")
+            
+            old_text = self.gen_contact_btn.cget("text")
+            self.gen_contact_btn.configure(text="✓ Copied")
+            self.after(1500, lambda: self.gen_contact_btn.configure(text=old_text))
+        except Exception as e:
+            messagebox.showerror("Contact ID Error", f"Failed to generate contact details.\nError: {e}")
     
     def _show_qr_code(self):
         """Display QR code for session code."""
@@ -1543,6 +1592,24 @@ class App(ctk.CTk):
 
         code = _generate_code()
         self.send_code_label.configure(text=code)
+        
+        # Auto-encrypt and save if Contact ID is provided
+        contact_id = self.contact_id_entry.get().strip()
+        if contact_id:
+            try:
+                encrypted_payload = encrypt_for_contact(contact_id, code)
+                downloads_dir = Path.home() / "Downloads"
+                if not downloads_dir.exists():
+                    downloads_dir = Path.home()
+                
+                key_file = downloads_dir / f"session_key.json"
+                with open(key_file, "w", encoding="utf-8") as f:
+                    f.write(encrypted_payload)
+                self._log(f"🔒 Session key saved to: {key_file}")
+            except Exception as e:
+                messagebox.showerror("Encryption Error", f"Failed to encrypt session code.\nCheck if the Contact ID is valid.\nError: {e}")
+                return
+        
         self._cancel_flag = False
         self._reset_ui()
         self._set_buttons(False)
@@ -1620,7 +1687,23 @@ class App(ctk.CTk):
     # ════════════════════════════════════════════════════════════════
 
     def _on_receive(self):
-        code = self.recv_code_entry.get().strip().lower()
+        raw_code = self.recv_code_entry.get().strip()
+        
+        # Check if it looks like the encrypted JSON payload (starts with 'ey', which is base64 for '{"')
+        if raw_code.startswith("ey"):
+            try:
+                self._log("🔓 Decrypting session code...")
+                self.update_idletasks() # Force UI update before heavy crypto
+                code = decrypt_from_contact(raw_code)
+                self.recv_code_entry.delete(0, "end")
+                self.recv_code_entry.insert(0, code)
+                self._log("✅ Session code decrypted successfully.")
+            except Exception as e:
+                messagebox.showerror("Decryption Failed", f"Invalid cipher text.\nError: {e}")
+                return
+        else:
+            code = raw_code.lower()
+            
         if not code or len(code.replace("-", "")) < SESSION_CODE_LENGTH:
             messagebox.showwarning("Code", "Enter the session code from the sender.")
             return

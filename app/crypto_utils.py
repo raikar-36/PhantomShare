@@ -19,6 +19,9 @@ import hmac
 import os
 import platform
 import struct
+import base64
+import json
+from pathlib import Path
 
 from cryptography.hazmat.primitives.asymmetric.x25519 import (
     X25519PrivateKey,
@@ -292,3 +295,121 @@ class CryptoSession:
     def read_length_prefix(data: bytes) -> int:
         """Unpack a 4-byte big-endian length prefix."""
         return struct.unpack("!I", data[:4])[0]
+
+# ════════════════════════════════════════════════════════════════════
+#  Contact ID / Persistent Identity (WhatsApp Secure Transfer)
+# ════════════════════════════════════════════════════════════════════
+
+IDENTITY_FILE = Path.home() / ".phantomshare" / "identity.key"
+
+def get_or_create_identity() -> X25519PrivateKey:
+    """Load the persistent X25519 private key from disk, or generate one if missing."""
+    IDENTITY_FILE.parent.mkdir(parents=True, exist_ok=True)
+    
+    if IDENTITY_FILE.exists():
+        try:
+            with open(IDENTITY_FILE, "rb") as f:
+                key_bytes = f.read()
+            return X25519PrivateKey.from_private_bytes(key_bytes)
+        except Exception:
+            pass # Fallback to generating a new one
+            
+    priv_key = X25519PrivateKey.generate()
+    # Save raw bytes
+    with open(IDENTITY_FILE, "wb") as f:
+        f.write(priv_key.private_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PrivateFormat.Raw,
+            encryption_algorithm=serialization.NoEncryption()
+        ))
+    
+    # Restrict permissions on Unix
+    if platform.system() != "Windows":
+        try:
+            os.chmod(IDENTITY_FILE, 0o600)
+        except OSError:
+            pass
+            
+    return priv_key
+
+def get_contact_id() -> str:
+    """Return the base64-encoded public key (Contact ID)."""
+    priv_key = get_or_create_identity()
+    pub_bytes = priv_key.public_key().public_bytes(
+        serialization.Encoding.Raw,
+        serialization.PublicFormat.Raw,
+    )
+    # URL-safe base64, no padding
+    return base64.urlsafe_b64encode(pub_bytes).decode('ascii').rstrip('=')
+
+def encrypt_for_contact(contact_id_b64: str, session_code: str) -> str:
+    """
+    Encrypt the session code for a specific Contact ID.
+    Returns a Base64-encoded JSON payload suitable for WhatsApp.
+    """
+    # 1. Parse receiver's public key
+    padding = '=' * (4 - len(contact_id_b64) % 4)
+    receiver_pub_bytes = base64.urlsafe_b64decode(contact_id_b64 + padding)
+    receiver_pub = X25519PublicKey.from_public_bytes(receiver_pub_bytes)
+    
+    # 2. Generate ephemeral sender key
+    ephemeral_priv = X25519PrivateKey.generate()
+    ephemeral_pub_bytes = ephemeral_priv.public_key().public_bytes(
+        serialization.Encoding.Raw,
+        serialization.PublicFormat.Raw,
+    )
+    
+    # 3. Derive shared secret and AES-GCM key
+    shared_secret = ephemeral_priv.exchange(receiver_pub)
+    derived_key = HKDF(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=b"secureshare-contact-v1",
+        info=b"contact-session-code",
+    ).derive(shared_secret)
+    
+    # 4. Encrypt session code
+    aes = AESGCM(derived_key)
+    nonce = os.urandom(12)
+    ciphertext = aes.encrypt(nonce, session_code.encode("utf-8"), None)
+    
+    # 5. Pack into JSON
+    payload = {
+        "ephem_pub": base64.b64encode(ephemeral_pub_bytes).decode('ascii'),
+        "nonce": base64.b64encode(nonce).decode('ascii'),
+        "ct": base64.b64encode(ciphertext).decode('ascii')
+    }
+    
+    json_bytes = json.dumps(payload).encode('utf-8')
+    return base64.urlsafe_b64encode(json_bytes).decode('ascii').rstrip('=')
+
+def decrypt_from_contact(encrypted_json_b64: str) -> str:
+    """
+    Decrypt a JSON payload received from WhatsApp using our persistent Contact ID.
+    """
+    # 1. Decode JSON payload
+    padding = '=' * (4 - len(encrypted_json_b64) % 4)
+    json_bytes = base64.urlsafe_b64decode(encrypted_json_b64 + padding)
+    payload = json.loads(json_bytes.decode('utf-8'))
+    
+    ephem_pub_bytes = base64.b64decode(payload["ephem_pub"])
+    nonce = base64.b64decode(payload["nonce"])
+    ciphertext = base64.b64decode(payload["ct"])
+    
+    # 2. Load our persistent private key
+    my_priv = get_or_create_identity()
+    ephem_pub = X25519PublicKey.from_public_bytes(ephem_pub_bytes)
+    
+    # 3. Derive shared secret and AES-GCM key
+    shared_secret = my_priv.exchange(ephem_pub)
+    derived_key = HKDF(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=b"secureshare-contact-v1",
+        info=b"contact-session-code",
+    ).derive(shared_secret)
+    
+    # 4. Decrypt session code
+    aes = AESGCM(derived_key)
+    session_code_bytes = aes.decrypt(nonce, ciphertext, None)
+    return session_code_bytes.decode("utf-8")
