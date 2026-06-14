@@ -950,75 +950,96 @@ class App(ctk.CTk):
             total = len(checks)
 
             # 1. Internet connectivity
-            try:
-                socket.setdefaulttimeout(5)
-                socket.create_connection(("8.8.8.8", 53), timeout=5).close()
-                _update_row("internet", True, "Connected")
+            if not VPS_RELAY_URL.startswith("wss://"):
+                _update_row("internet", True, "Not applicable (LAN)", "#888888")
                 passed += 1
-            except Exception:
-                _update_row("internet", False, "No connection")
-                # If no internet, mark all remaining as failed
-                for key in ["dns", "tls", "websocket", "latency"]:
-                    _update_row(key, False, "Skipped (no internet)",
-                                "#888888")
-                win.after(0, lambda: summary_label.configure(
-                    text=f"Result: {passed}/{total} checks passed",
-                    text_color="#e74c3c",
-                ))
-                return
+            else:
+                try:
+                    socket.setdefaulttimeout(5)
+                    socket.create_connection(("8.8.8.8", 53), timeout=5).close()
+                    _update_row("internet", True, "Connected")
+                    passed += 1
+                except Exception:
+                    _update_row("internet", False, "No connection")
+                    # If no internet, mark all remaining as failed
+                    for key in ["dns", "tls", "websocket", "latency"]:
+                        _update_row(key, False, "Skipped (no internet)",
+                                    "#888888")
+                    win.after(0, lambda: summary_label.configure(
+                        text=f"Result: {passed}/{total} checks passed",
+                        text_color="#e74c3c",
+                    ))
+                    return
 
             # 2. DNS resolution
-            try:
-                t0 = time.perf_counter()
-                ip = socket.gethostbyname(host)
-                dns_ms = (time.perf_counter() - t0) * 1000
-                _update_row("dns", True, f"{ip} ({dns_ms:.0f} ms)")
+            if not VPS_RELAY_URL.startswith("wss://"):
+                _update_row("dns", True, "Not applicable (LAN)", "#888888")
                 passed += 1
-            except Exception:
-                _update_row("dns", False, f"Could not resolve {host}")
-                for key in ["tls", "websocket", "latency"]:
-                    _update_row(key, False, "Skipped (DNS error)",
-                                "#888888")
-                win.after(0, lambda: summary_label.configure(
-                    text=f"Result: {passed}/{total} checks passed",
-                    text_color="#e74c3c",
-                ))
-                return
+            else:
+                try:
+                    t0 = time.perf_counter()
+                    ip = socket.gethostbyname(host)
+                    dns_ms = (time.perf_counter() - t0) * 1000
+                    _update_row("dns", True, f"{ip} ({dns_ms:.0f} ms)")
+                    passed += 1
+                except Exception:
+                    _update_row("dns", False, f"Could not resolve {host}")
+                    for key in ["tls", "websocket", "latency"]:
+                        _update_row(key, False, "Skipped (DNS error)",
+                                    "#888888")
+                    win.after(0, lambda: summary_label.configure(
+                        text=f"Result: {passed}/{total} checks passed",
+                        text_color="#e74c3c",
+                    ))
+                    return
 
             # 3. TLS/SSL certificate
-            try:
-                ctx = ssl.create_default_context()
-                with socket.create_connection((host, port), timeout=5) as raw:
-                    with ctx.wrap_socket(raw, server_hostname=host) as ssock:
-                        cert = ssock.getpeercert()
-                        issuer_parts = dict(
-                            x[0] for x in cert.get("issuer", [])
-                        )
-                        issuer = issuer_parts.get(
-                            "organizationName", "Unknown"
-                        )
-                        not_after = cert.get("notAfter", "?")
-                        _update_row("tls", True,
-                                    f"{issuer} ({not_after})")
-                        passed += 1
-            except ssl.SSLCertVerificationError:
-                _update_row("tls", False, "Invalid certificate")
-            except Exception as exc:
-                _update_row("tls", False, f"Error: {type(exc).__name__}")
+            if not VPS_RELAY_URL.startswith("wss://"):
+                _update_row("tls", True, "Not applicable (LAN)", "#888888")
+                passed += 1
+            else:
+                try:
+                    ctx = ssl.create_default_context()
+                    with socket.create_connection((host, port), timeout=5) as raw:
+                        with ctx.wrap_socket(raw, server_hostname=host) as ssock:
+                            cert = ssock.getpeercert()
+                            issuer_parts = dict(
+                                x[0] for x in cert.get("issuer", [])
+                            )
+                            issuer = issuer_parts.get(
+                                "organizationName", "Unknown"
+                            )
+                            not_after = cert.get("notAfter", "?")
+                            _update_row("tls", True,
+                                        f"{issuer} ({not_after})")
+                            passed += 1
+                except ssl.SSLCertVerificationError:
+                    _update_row("tls", False, "Invalid certificate")
+                except Exception as exc:
+                    _update_row("tls", False, f"Error: {type(exc).__name__}")
 
             # 4. WebSocket connection
             try:
                 import websockets.sync.client as wsc
                 t0 = time.perf_counter()
-                ws = wsc.connect(
-                    f"{VPS_RELAY_URL}/health",
-                    open_timeout=5,
-                    close_timeout=3,
-                )
-                ws_ms = (time.perf_counter() - t0) * 1000
-                ws.close()
-                _update_row("websocket", True, f"OK ({ws_ms:.0f} ms)")
-                passed += 1
+                
+                if not VPS_RELAY_URL.startswith("wss://"):
+                    # LAN mode: skip HTTP health check, test raw TCP connection to WebSocket port
+                    s = socket.create_connection((host, port), timeout=5)
+                    s.close()
+                    ws_ms = (time.perf_counter() - t0) * 1000
+                    _update_row("websocket", True, f"OK (TCP, {ws_ms:.0f} ms)")
+                    passed += 1
+                else:
+                    ws = wsc.connect(
+                        f"{VPS_RELAY_URL}/health",
+                        open_timeout=5,
+                        close_timeout=3,
+                    )
+                    ws_ms = (time.perf_counter() - t0) * 1000
+                    ws.close()
+                    _update_row("websocket", True, f"OK ({ws_ms:.0f} ms)")
+                    passed += 1
             except Exception:
                 # Try plain HTTPS health check as fallback
                 try:

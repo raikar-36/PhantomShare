@@ -898,7 +898,10 @@ class VPSRelaySender:
             return False  # Permanent failure — don't retry with bad cert
         
         try:
-            self._ws = websocket.WebSocket(sslopt={"ssl_context": _create_pinned_ssl_context()})
+            if VPS_RELAY_URL.startswith("wss://"):
+                self._ws = websocket.WebSocket(sslopt={"ssl_context": _create_pinned_ssl_context()})
+            else:
+                self._ws = websocket.WebSocket()
             self._ws.connect(VPS_RELAY_URL, timeout=30)
             self._ws.settimeout(300)       # 5 min to wait for peer
             self._ws.send(self._code)      # register session code
@@ -1295,7 +1298,10 @@ class VPSRelayReceiver:
             return None
         
         try:
-            self._ws = websocket.WebSocket(sslopt={"ssl_context": _create_pinned_ssl_context()})
+            if VPS_RELAY_URL.startswith("wss://"):
+                self._ws = websocket.WebSocket(sslopt={"ssl_context": _create_pinned_ssl_context()})
+            else:
+                self._ws = websocket.WebSocket()
             self._ws.connect(VPS_RELAY_URL, timeout=30)
             self._ws.settimeout(300)
             self._ws.send(self._code)
