@@ -1580,6 +1580,11 @@ class App(ctk.CTk):
 
             if ok:
                 outcome = "success"
+                try:
+                    file_size = Path(filepath).stat().st_size
+                    self._set_progress(file_size, file_size, 0)
+                except Exception:
+                    pass
                 self._set_state(self.STATE_DONE)
                 self._log("🎉 Transfer complete!")
             elif self._cancel_flag:
@@ -1663,6 +1668,7 @@ class App(ctk.CTk):
                 outcome = "success"
                 try:
                     file_size = Path(result).stat().st_size
+                    self._set_progress(file_size, file_size, 0)
                 except Exception:
                     pass
                 
