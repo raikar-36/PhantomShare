@@ -987,9 +987,26 @@ class App(ctk.CTk):
                 bg = "#2e1a1a"
 
             def _do():
-                lbl.configure(text=txt, text_color=clr)
-                row_frame.configure(fg_color=bg)
-            win.after(0, _do)
+                try:
+                    lbl.configure(text=txt, text_color=clr)
+                    row_frame.configure(fg_color=bg)
+                except Exception:
+                    pass
+            try:
+                win.after(0, _do)
+            except Exception:
+                pass
+
+        def _update_summary(text: str, color: str):
+            def _do():
+                try:
+                    summary_label.configure(text=text, text_color=color)
+                except Exception:
+                    pass
+            try:
+                win.after(0, _do)
+            except Exception:
+                pass
 
         def _run_checks():
             parsed = urlparse(VPS_RELAY_URL)
@@ -1014,10 +1031,7 @@ class App(ctk.CTk):
                     for key in ["dns", "tls", "websocket", "latency"]:
                         _update_row(key, False, "Skipped (no internet)",
                                     "#888888")
-                    win.after(0, lambda: summary_label.configure(
-                        text=f"Result: {passed}/{total} checks passed",
-                        text_color="#e74c3c",
-                    ))
+                    _update_summary(f"Result: {passed}/{total} checks passed", "#e74c3c")
                     return
 
             # 2. DNS resolution
@@ -1036,10 +1050,7 @@ class App(ctk.CTk):
                     for key in ["tls", "websocket", "latency"]:
                         _update_row(key, False, "Skipped (DNS error)",
                                     "#888888")
-                    win.after(0, lambda: summary_label.configure(
-                        text=f"Result: {passed}/{total} checks passed",
-                        text_color="#e74c3c",
-                    ))
+                    _update_summary(f"Result: {passed}/{total} checks passed", "#e74c3c")
                     return
 
             # 3. TLS/SSL certificate
@@ -1148,9 +1159,7 @@ class App(ctk.CTk):
                 s_text = f"❌  Problems ({passed}/{total})"
                 s_color = "#e74c3c"
 
-            win.after(0, lambda: summary_label.configure(
-                text=s_text, text_color=s_color,
-            ))
+            _update_summary(s_text, s_color)
 
         # Run checks in background thread
         threading.Thread(target=_run_checks, daemon=True).start()
