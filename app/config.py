@@ -71,6 +71,7 @@ CHUNK_SIZE_ADAPTIVE = _get_config("chunk_size_adaptive", True)
 # To get a certificate fingerprint:
 #   openssl s_client -connect host:443 | openssl x509 -outform DER | sha256sum
 VPS_CERT_FINGERPRINTS = [
+    "cb2d782011164169eb1a5ec8046e5fba89ad376e78ed492a573b515a9504e307",
     "7b0688cfaa5ff53f53940f30b706d26ce4decdc0cac96f96baf09209f132caf3",
     "2bc91838b0ec99257faaf2e2ea7c4ad3cde3066b2205bbc82b299ff512d05a3c",
 ]
